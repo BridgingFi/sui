@@ -1,0 +1,41 @@
+{
+  "name": "bridgingfi-web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "lint": "eslint \"src/**/*.{ts,tsx}\""
+  },
+  "dependencies": {
+    "@heroui/react": "^2.4.23",
+    "@mysten/dapp-kit": "^0.19.8",
+    "@mysten/sui.js": "^0.54.1",
+    "@tanstack/react-query": "^5.45.0",
+    "@types/react": "^18.3.3",
+    "@types/react-dom": "^18.3.0",
+    "clsx": "^2.1.1",
+    "framer-motion": "^11.18.2",
+    "iconoir-react": "^7.11.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^6.28.0",
+    "tailwind-variants": "^3.1.1",
+    "zustand": "^4.5.2"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.1.11",
+    "@tailwindcss/vite": "^4.1.11",
+    "@types/node": "^20.12.7",
+    "@vitejs/plugin-react": "^4.7.0",
+    "autoprefixer": "^10.4.18",
+    "postcss": "^8.4.38",
+    "tailwindcss": "^4.1.11",
+    "typescript": "^5.4.5",
+    "vite": "^5.2.10",
+    "vite-tsconfig-paths": "^5.1.4"
+  },
+  "packageManager": "pnpm@9.0.0"
+}

@@ -1,2 +1,5 @@
 move/**/build/
+node_modules/
+pnpm-lock.yaml
+web/dist/
 
