@@ -1,0 +1,9 @@
+[package]
+name = "bridgingfi_vault"
+edition = "2024.beta"
+
+[dependencies]
+volo_vault = { git = "https://github.com/Sui-Volo/volo-smart-contracts.git", subdir = "volo-vault", rev = "main" }
+
+[addresses]
+bridgingfi_vault = "0x0"
