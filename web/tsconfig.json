@@ -15,10 +15,7 @@
     "noUncheckedIndexedAccess": true,
     "baseUrl": "./",
     "paths": {
-      "@/components/*": ["src/components/*"],
-      "@/routes/*": ["src/routes/*"],
-      "@/lib/*": ["src/lib/*"],
-      "@/styles/*": ["src/styles/*"]
+      "@/*": ["src/*"]
     },
     "types": ["vite/client"],
     "jsx": "react-jsx"

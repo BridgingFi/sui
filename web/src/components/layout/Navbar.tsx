@@ -9,48 +9,59 @@ import {
   NavbarBrand,
   NavbarContent,
   NavbarItem,
+  Image,
 } from '@heroui/react';
-import { Menu, NavArrowDown } from 'iconoir-react';
-import { useMemo, useState } from 'react';
+import { NavArrowDown, Xmark } from 'iconoir-react';
+import { useState } from 'react';
 import { useLocation } from 'react-router-dom';
 
-import { routes, siteConfig } from '@/lib/siteConfig';
+import { routes } from '@/lib/siteConfig';
+import { WalletConnectButtonWithModal } from '@/components/wallet/WalletConnectButtonWithModal';
 
 export const Navbar = () => {
   const { pathname } = useLocation();
   const [isOpen, setIsOpen] = useState(false);
 
-  const current = useMemo(() => {
-    const fallback = routes[0] ?? { label: 'Home', href: '/' };
-    return routes.find((route) => route.href === pathname) ?? fallback;
-  }, [pathname]);
+  const isVault = pathname === '/';
+  const isAdmin = pathname === '/admin';
+  const currentPage = isVault ? 'Vault' : 'Admin';
 
   return (
-    <HeroNavbar maxWidth="xl" position="sticky">
-      <NavbarContent className="basis-1/3 sm:basis-full" justify="start">
-        <NavbarBrand className="gap-2">
-          <Link className="font-semibold" color="foreground" href="/">
-            {siteConfig.name}
-          </Link>
+    <HeroNavbar maxWidth="xl" position="static">
+      <NavbarContent className="basis-1/5 sm:basis-full" justify="start">
+        <NavbarBrand>
+          <Image
+            alt="Logo"
+            className="h-5 w-11"
+            radius="none"
+            src="/logo.svg"
+          />
+          <Image
+            alt="BridgingFi"
+            className="h-4 w-24"
+            radius="none"
+            src="/brand_dark.svg"
+          />
         </NavbarBrand>
       </NavbarContent>
 
-      <NavbarContent className="basis-1/3" justify="center">
+      <NavbarContent className="basis-1/5" justify="center">
+        {/* Mobile dropdown selector */}
         <NavbarItem className="sm:hidden">
-          <Dropdown isOpen={isOpen} onOpenChange={setIsOpen}>
+          <Dropdown isOpen={isOpen} placement="bottom-start" onOpenChange={setIsOpen}>
             <DropdownTrigger>
               <Button
-                endContent={isOpen ? <Menu /> : <NavArrowDown />}
-                size="sm"
+                endContent={isOpen ? <Xmark /> : <NavArrowDown />}
+                size="lg"
                 variant="light"
               >
-                {current.label}
+                {currentPage}
               </Button>
             </DropdownTrigger>
-            <DropdownMenu aria-label="Main navigation">
-              {routes.map((route) => (
-                <DropdownItem key={route.href} as={Link} href={route.href}>
-                  {route.label}
+            <DropdownMenu aria-label="Navigation menu">
+              {routes.map((item) => (
+                <DropdownItem key={item.href} as={Link} href={item.href}>
+                  {item.label}
                 </DropdownItem>
               ))}
             </DropdownMenu>
@@ -58,33 +69,36 @@ export const Navbar = () => {
         </NavbarItem>
       </NavbarContent>
 
-      <NavbarContent className="hidden gap-2 sm:flex" justify="center">
-        {routes.map((route) => {
-          const isActive = pathname === route.href;
-          return (
-            <NavbarItem key={route.href}>
-              <Button
-                as={Link}
-                color={isActive ? 'primary' : 'default'}
-                href={route.href}
-                size="sm"
-                variant={isActive ? 'solid' : 'light'}
-              >
-                {route.label}
-              </Button>
-            </NavbarItem>
-          );
-        })}
+      <NavbarContent className="hidden sm:flex basis-1/5" justify="center">
+        <NavbarItem>
+          <Button
+            as={Link}
+            className="min-w-16"
+            color={isVault ? 'primary' : 'default'}
+            href="/"
+            size="sm"
+            variant={isVault ? 'solid' : 'light'}
+          >
+            Vault
+          </Button>
+        </NavbarItem>
+        <NavbarItem>
+          <Button
+            as={Link}
+            className="min-w-16"
+            color={isAdmin ? 'primary' : 'default'}
+            href="/admin"
+            size="sm"
+            variant={isAdmin ? 'solid' : 'light'}
+          >
+            Admin
+          </Button>
+        </NavbarItem>
       </NavbarContent>
 
-      <NavbarContent className="basis-1/3" justify="end">
-        <NavbarItem className="hidden gap-3 sm:flex">
-          <Link isExternal href={siteConfig.links.github} title="GitHub">
-            GitHub
-          </Link>
-          <Link isExternal href={siteConfig.links.docs} title="Docs">
-            Docs
-          </Link>
+      <NavbarContent className="flex basis-1/5" justify="end">
+        <NavbarItem>
+          <WalletConnectButtonWithModal />
         </NavbarItem>
       </NavbarContent>
     </HeroNavbar>
