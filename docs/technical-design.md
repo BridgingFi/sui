@@ -26,7 +26,7 @@
 
 - Managed via Git Subtree (see `move/local_dependencies/README.md` for setup and update instructions).
 - Development uses local path dependency; deployment uses network-specific branches with published addresses.
-- Only depends on Switchboard (via git), simplifying deployment.
+- **Only depends on Switchboard** (via local dependency), simplifying deployment. Volo Vault has been streamlined to remove DeFi protocol adapters (Navi, Suilend, Cetus, etc.) while maintaining core functionality.
 
 See `move/local_dependencies/README.md` for deployment instructions.
 
