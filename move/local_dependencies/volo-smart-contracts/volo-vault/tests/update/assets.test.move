@@ -1,8 +1,8 @@
 #[test_only]
 module volo_vault::assets_test;
 
-use lending_core::account::AccountCap as NaviAccountCap;
-use lending_core::lending;
+// use lending_core::account::AccountCap as NaviAccountCap;
+// use lending_core::lending;
 use std::type_name;
 use sui::clock;
 use sui::test_scenario;
@@ -17,219 +17,219 @@ use volo_vault::vault_utils;
 
 const OWNER: address = @0xa;
 
-#[test]
-// [TEST-CASE: Should add new defi asset.] @test-case ASSETS-001
-public fun test_add_new_defi_asset() {
-    let mut s = test_scenario::begin(OWNER);
+// #[test]
+// // [TEST-CASE: Should add new defi asset.] @test-case ASSETS-001
+// public fun test_add_new_defi_asset() {
+//     let mut s = test_scenario::begin(OWNER);
 
-    let mut clock = clock::create_for_testing(s.ctx());
+//     let mut clock = clock::create_for_testing(s.ctx());
 
-    init_vault::init_vault(&mut s, &mut clock);
-    init_vault::init_create_vault<SUI_TEST_COIN>(&mut s);
-    init_vault::init_create_reward_manager<SUI_TEST_COIN>(&mut s);
+//     init_vault::init_vault(&mut s, &mut clock);
+//     init_vault::init_create_vault<SUI_TEST_COIN>(&mut s);
+//     init_vault::init_create_reward_manager<SUI_TEST_COIN>(&mut s);
 
-    s.next_tx(OWNER);
-    {
-        let mut vault = s.take_shared<Vault<SUI_TEST_COIN>>();
-        let operation = s.take_shared<Operation>();
-        let cap = s.take_from_sender<OperatorCap>();
+//     s.next_tx(OWNER);
+//     {
+//         let mut vault = s.take_shared<Vault<SUI_TEST_COIN>>();
+//         let operation = s.take_shared<Operation>();
+//         let cap = s.take_from_sender<OperatorCap>();
 
-        let navi_account_cap = lending::create_account(s.ctx());
-        operation::add_new_defi_asset(
-            &operation,
-            &cap,
-            &mut vault,
-            0,
-            navi_account_cap,
-        );
+//         let navi_account_cap = lending::create_account(s.ctx());
+//         operation::add_new_defi_asset(
+//             &operation,
+//             &cap,
+//             &mut vault,
+//             0,
+//             navi_account_cap,
+//         );
 
-        test_scenario::return_shared(vault);
-        test_scenario::return_shared(operation);
-        s.return_to_sender(cap);
-    };
+//         test_scenario::return_shared(vault);
+//         test_scenario::return_shared(operation);
+//         s.return_to_sender(cap);
+//     };
 
-    s.next_tx(OWNER);
-    {
-        let vault = s.take_shared<Vault<SUI_TEST_COIN>>();
+//     s.next_tx(OWNER);
+//     {
+//         let vault = s.take_shared<Vault<SUI_TEST_COIN>>();
 
-        let navi_asset_type = vault_utils::parse_key<NaviAccountCap>(0);
-        assert!(vault.contains_asset_type(navi_asset_type));
+//         let navi_asset_type = vault_utils::parse_key<NaviAccountCap>(0);
+//         assert!(vault.contains_asset_type(navi_asset_type));
 
-        let wrong_asset_type = vault_utils::parse_key<NaviAccountCap>(1);
-        assert!(!vault.contains_asset_type(wrong_asset_type));
+//         let wrong_asset_type = vault_utils::parse_key<NaviAccountCap>(1);
+//         assert!(!vault.contains_asset_type(wrong_asset_type));
 
-        test_scenario::return_shared(vault);
-    };
+//         test_scenario::return_shared(vault);
+//     };
 
-    clock.destroy_for_testing();
-    s.end();
-}
+//     clock.destroy_for_testing();
+//     s.end();
+// }
 
-#[test]
-// [TEST-CASE: Should remove defi asset support.] @test-case ASSETS-002
-public fun test_remove_defi_asset_support() {
-    let mut s = test_scenario::begin(OWNER);
+// #[test]
+// // [TEST-CASE: Should remove defi asset support.] @test-case ASSETS-002
+// public fun test_remove_defi_asset_support() {
+//     let mut s = test_scenario::begin(OWNER);
 
-    let mut clock = clock::create_for_testing(s.ctx());
+//     let mut clock = clock::create_for_testing(s.ctx());
 
-    init_vault::init_vault(&mut s, &mut clock);
-    init_vault::init_create_vault<SUI_TEST_COIN>(&mut s);
-    init_vault::init_create_reward_manager<SUI_TEST_COIN>(&mut s);
+//     init_vault::init_vault(&mut s, &mut clock);
+//     init_vault::init_create_vault<SUI_TEST_COIN>(&mut s);
+//     init_vault::init_create_reward_manager<SUI_TEST_COIN>(&mut s);
 
-    s.next_tx(OWNER);
-    {
-        let mut vault = s.take_shared<Vault<SUI_TEST_COIN>>();
-        let operation = s.take_shared<Operation>();
-        let cap = s.take_from_sender<OperatorCap>();
+//     s.next_tx(OWNER);
+//     {
+//         let mut vault = s.take_shared<Vault<SUI_TEST_COIN>>();
+//         let operation = s.take_shared<Operation>();
+//         let cap = s.take_from_sender<OperatorCap>();
 
-        let navi_account_cap = lending::create_account(s.ctx());
-        operation::add_new_defi_asset(
-            &operation,
-            &cap,
-            &mut vault,
-            0,
-            navi_account_cap,
-        );
+//         let navi_account_cap = lending::create_account(s.ctx());
+//         operation::add_new_defi_asset(
+//             &operation,
+//             &cap,
+//             &mut vault,
+//             0,
+//             navi_account_cap,
+//         );
 
-        test_scenario::return_shared(vault);
-        test_scenario::return_shared(operation);
-        s.return_to_sender(cap);
-    };
+//         test_scenario::return_shared(vault);
+//         test_scenario::return_shared(operation);
+//         s.return_to_sender(cap);
+//     };
 
-    s.next_tx(OWNER);
-    {
-        let mut vault = s.take_shared<Vault<SUI_TEST_COIN>>();
-        let operation = s.take_shared<Operation>();
-        let cap = s.take_from_sender<OperatorCap>();
+//     s.next_tx(OWNER);
+//     {
+//         let mut vault = s.take_shared<Vault<SUI_TEST_COIN>>();
+//         let operation = s.take_shared<Operation>();
+//         let cap = s.take_from_sender<OperatorCap>();
 
-        let navi_account_cap = operation::remove_defi_asset_support<SUI_TEST_COIN, NaviAccountCap>(
-            &operation,
-            &cap,
-            &mut vault,
-            0,
-        );
-        transfer::public_transfer(navi_account_cap, OWNER);
+//         let navi_account_cap = operation::remove_defi_asset_support<SUI_TEST_COIN, NaviAccountCap>(
+//             &operation,
+//             &cap,
+//             &mut vault,
+//             0,
+//         );
+//         transfer::public_transfer(navi_account_cap, OWNER);
 
-        test_scenario::return_shared(vault);
-        test_scenario::return_shared(operation);
-        s.return_to_sender(cap);
-    };
+//         test_scenario::return_shared(vault);
+//         test_scenario::return_shared(operation);
+//         s.return_to_sender(cap);
+//     };
 
-    s.next_tx(OWNER);
-    {
-        let vault = s.take_shared<Vault<SUI_TEST_COIN>>();
+//     s.next_tx(OWNER);
+//     {
+//         let vault = s.take_shared<Vault<SUI_TEST_COIN>>();
 
-        let navi_asset_type = vault_utils::parse_key<NaviAccountCap>(0);
-        assert!(!vault.contains_asset_type(navi_asset_type));
+//         let navi_asset_type = vault_utils::parse_key<NaviAccountCap>(0);
+//         assert!(!vault.contains_asset_type(navi_asset_type));
 
-        test_scenario::return_shared(vault);
-    };
+//         test_scenario::return_shared(vault);
+//     };
 
-    clock.destroy_for_testing();
-    s.end();
-}
+//     clock.destroy_for_testing();
+//     s.end();
+// }
 
-#[test]
-#[expected_failure(abort_code = vault::ERR_ASSET_TYPE_NOT_FOUND, location = vault)]
-// [TEST-CASE: Should remove defi asset support fail if not exist.] @test-case ASSETS-003
-public fun test_remove_defi_asset_support_fail_not_exist() {
-    let mut s = test_scenario::begin(OWNER);
+// #[test]
+// #[expected_failure(abort_code = vault::ERR_ASSET_TYPE_NOT_FOUND, location = vault)]
+// // [TEST-CASE: Should remove defi asset support fail if not exist.] @test-case ASSETS-003
+// public fun test_remove_defi_asset_support_fail_not_exist() {
+//     let mut s = test_scenario::begin(OWNER);
 
-    let mut clock = clock::create_for_testing(s.ctx());
+//     let mut clock = clock::create_for_testing(s.ctx());
 
-    init_vault::init_vault(&mut s, &mut clock);
-    init_vault::init_create_vault<SUI_TEST_COIN>(&mut s);
-    init_vault::init_create_reward_manager<SUI_TEST_COIN>(&mut s);
+//     init_vault::init_vault(&mut s, &mut clock);
+//     init_vault::init_create_vault<SUI_TEST_COIN>(&mut s);
+//     init_vault::init_create_reward_manager<SUI_TEST_COIN>(&mut s);
 
-    s.next_tx(OWNER);
-    {
-        let mut vault = s.take_shared<Vault<SUI_TEST_COIN>>();
-        let operation = s.take_shared<Operation>();
-        let cap = s.take_from_sender<OperatorCap>();
+//     s.next_tx(OWNER);
+//     {
+//         let mut vault = s.take_shared<Vault<SUI_TEST_COIN>>();
+//         let operation = s.take_shared<Operation>();
+//         let cap = s.take_from_sender<OperatorCap>();
 
-        let navi_account_cap = operation::remove_defi_asset_support<SUI_TEST_COIN, NaviAccountCap>(
-            &operation,
-            &cap,
-            &mut vault,
-            0,
-        );
-        transfer::public_transfer(navi_account_cap, OWNER);
+//         let navi_account_cap = operation::remove_defi_asset_support<SUI_TEST_COIN, NaviAccountCap>(
+//             &operation,
+//             &cap,
+//             &mut vault,
+//             0,
+//         );
+//         transfer::public_transfer(navi_account_cap, OWNER);
 
-        test_scenario::return_shared(vault);
-        test_scenario::return_shared(operation);
-        s.return_to_sender(cap);
-    };
+//         test_scenario::return_shared(vault);
+//         test_scenario::return_shared(operation);
+//         s.return_to_sender(cap);
+//     };
 
-    clock.destroy_for_testing();
-    s.end();
-}
+//     clock.destroy_for_testing();
+//     s.end();
+// }
 
-#[test]
-#[expected_failure(abort_code = vault::ERR_ASSET_TYPE_NOT_FOUND, location = vault)]
-// [TEST-CASE: Should remove defi asset support fail if value already updated.] @test-case ASSETS-004
-public fun test_remove_defi_asset_support_fail_value_already_updated() {
-    let mut s = test_scenario::begin(OWNER);
+// #[test]
+// #[expected_failure(abort_code = vault::ERR_ASSET_TYPE_NOT_FOUND, location = vault)]
+// // [TEST-CASE: Should remove defi asset support fail if value already updated.] @test-case ASSETS-004
+// public fun test_remove_defi_asset_support_fail_value_already_updated() {
+//     let mut s = test_scenario::begin(OWNER);
 
-    let mut clock = clock::create_for_testing(s.ctx());
+//     let mut clock = clock::create_for_testing(s.ctx());
 
-    init_vault::init_vault(&mut s, &mut clock);
-    init_vault::init_create_vault<SUI_TEST_COIN>(&mut s);
-    init_vault::init_create_reward_manager<SUI_TEST_COIN>(&mut s);
+//     init_vault::init_vault(&mut s, &mut clock);
+//     init_vault::init_create_vault<SUI_TEST_COIN>(&mut s);
+//     init_vault::init_create_reward_manager<SUI_TEST_COIN>(&mut s);
 
-    s.next_tx(OWNER);
-    {
-        let mut vault = s.take_shared<Vault<SUI_TEST_COIN>>();
-        let operation = s.take_shared<Operation>();
-        let cap = s.take_from_sender<OperatorCap>();
+//     s.next_tx(OWNER);
+//     {
+//         let mut vault = s.take_shared<Vault<SUI_TEST_COIN>>();
+//         let operation = s.take_shared<Operation>();
+//         let cap = s.take_from_sender<OperatorCap>();
 
-        let navi_account_cap = lending::create_account(s.ctx());
-        operation::add_new_defi_asset(
-            &operation,
-            &cap,
-            &mut vault,
-            0,
-            navi_account_cap,
-        );
+//         let navi_account_cap = lending::create_account(s.ctx());
+//         operation::add_new_defi_asset(
+//             &operation,
+//             &cap,
+//             &mut vault,
+//             0,
+//             navi_account_cap,
+//         );
 
-        test_scenario::return_shared(vault);
-        test_scenario::return_shared(operation);
-        s.return_to_sender(cap);
-    };
+//         test_scenario::return_shared(vault);
+//         test_scenario::return_shared(operation);
+//         s.return_to_sender(cap);
+//     };
 
-    s.next_tx(OWNER);
-    {
-        let mut vault = s.take_shared<Vault<SUI_TEST_COIN>>();
-        let config = s.take_shared<OracleConfig>();
-        let navi_asset_type = vault_utils::parse_key<NaviAccountCap>(0);
+//     s.next_tx(OWNER);
+//     {
+//         let mut vault = s.take_shared<Vault<SUI_TEST_COIN>>();
+//         let config = s.take_shared<OracleConfig>();
+//         let navi_asset_type = vault_utils::parse_key<NaviAccountCap>(0);
 
-        vault.set_asset_value(navi_asset_type, 1_000_000_000, 1000);
+//         vault.set_asset_value(navi_asset_type, 1_000_000_000, 1000);
 
-        test_scenario::return_shared(vault);
-        test_scenario::return_shared(config);
-    };
+//         test_scenario::return_shared(vault);
+//         test_scenario::return_shared(config);
+//     };
 
-    s.next_tx(OWNER);
-    {
-        let mut vault = s.take_shared<Vault<SUI_TEST_COIN>>();
-        let operation = s.take_shared<Operation>();
-        let cap = s.take_from_sender<OperatorCap>();
+//     s.next_tx(OWNER);
+//     {
+//         let mut vault = s.take_shared<Vault<SUI_TEST_COIN>>();
+//         let operation = s.take_shared<Operation>();
+//         let cap = s.take_from_sender<OperatorCap>();
 
-        let navi_account_cap = operation::remove_defi_asset_support<SUI_TEST_COIN, NaviAccountCap>(
-            &operation,
-            &cap,
-            &mut vault,
-            0,
-        );
-        transfer::public_transfer(navi_account_cap, OWNER);
+//         let navi_account_cap = operation::remove_defi_asset_support<SUI_TEST_COIN, NaviAccountCap>(
+//             &operation,
+//             &cap,
+//             &mut vault,
+//             0,
+//         );
+//         transfer::public_transfer(navi_account_cap, OWNER);
 
-        test_scenario::return_shared(vault);
-        test_scenario::return_shared(operation);
-        s.return_to_sender(cap);
-    };
+//         test_scenario::return_shared(vault);
+//         test_scenario::return_shared(operation);
+//         s.return_to_sender(cap);
+//     };
 
-    clock.destroy_for_testing();
-    s.end();
-}
+//     clock.destroy_for_testing();
+//     s.end();
+// }
 
 #[test]
 // [TEST-CASE: Should add new coin type asset.] @test-case ASSETS-005
@@ -276,158 +276,158 @@ public fun test_add_new_coin_type_asset() {
     s.end();
 }
 
-#[test]
-// [TEST-CASE: Should borrow defi asset but not return.] @test-case ASSETS-006
-public fun test_borrow_defi_asset_not_return() {
-    let mut s = test_scenario::begin(OWNER);
+// #[test]
+// // [TEST-CASE: Should borrow defi asset but not return.] @test-case ASSETS-006
+// public fun test_borrow_defi_asset_not_return() {
+//     let mut s = test_scenario::begin(OWNER);
 
-    let mut clock = clock::create_for_testing(s.ctx());
+//     let mut clock = clock::create_for_testing(s.ctx());
 
-    init_vault::init_vault(&mut s, &mut clock);
-    init_vault::init_create_vault<SUI_TEST_COIN>(&mut s);
-    init_vault::init_create_reward_manager<SUI_TEST_COIN>(&mut s);
+//     init_vault::init_vault(&mut s, &mut clock);
+//     init_vault::init_create_vault<SUI_TEST_COIN>(&mut s);
+//     init_vault::init_create_reward_manager<SUI_TEST_COIN>(&mut s);
 
-    s.next_tx(OWNER);
-    {
-        let mut vault = s.take_shared<Vault<SUI_TEST_COIN>>();
+//     s.next_tx(OWNER);
+//     {
+//         let mut vault = s.take_shared<Vault<SUI_TEST_COIN>>();
 
-        let navi_account_cap = lending::create_account(s.ctx());
-        let navi_account_cap_address = object::id_address(&navi_account_cap);
-        vault.add_new_defi_asset(
-            0,
-            navi_account_cap,
-        );
+//         let navi_account_cap = lending::create_account(s.ctx());
+//         let navi_account_cap_address = object::id_address(&navi_account_cap);
+//         vault.add_new_defi_asset(
+//             0,
+//             navi_account_cap,
+//         );
 
-        let navi_asset_type = vault_utils::parse_key<NaviAccountCap>(0);
-        let navi_account_cap = vault.borrow_defi_asset<SUI_TEST_COIN, NaviAccountCap>(
-            navi_asset_type,
-        );
-        assert!(navi_account_cap.account_owner() == navi_account_cap_address);
+//         let navi_asset_type = vault_utils::parse_key<NaviAccountCap>(0);
+//         let navi_account_cap = vault.borrow_defi_asset<SUI_TEST_COIN, NaviAccountCap>(
+//             navi_asset_type,
+//         );
+//         assert!(navi_account_cap.account_owner() == navi_account_cap_address);
 
-        transfer::public_transfer(navi_account_cap, OWNER);
+//         transfer::public_transfer(navi_account_cap, OWNER);
 
-        test_scenario::return_shared(vault);
-    };
+//         test_scenario::return_shared(vault);
+//     };
 
-    s.next_tx(OWNER);
-    {
-        let vault = s.take_shared<Vault<SUI_TEST_COIN>>();
+//     s.next_tx(OWNER);
+//     {
+//         let vault = s.take_shared<Vault<SUI_TEST_COIN>>();
 
-        let navi_asset_type = vault_utils::parse_key<NaviAccountCap>(0);
-        assert!(!vault.contains_asset_type(navi_asset_type));
+//         let navi_asset_type = vault_utils::parse_key<NaviAccountCap>(0);
+//         assert!(!vault.contains_asset_type(navi_asset_type));
 
-        test_scenario::return_shared(vault);
-    };
+//         test_scenario::return_shared(vault);
+//     };
 
-    clock.destroy_for_testing();
-    s.end();
-}
+//     clock.destroy_for_testing();
+//     s.end();
+// }
 
-#[test]
-// [TEST-CASE: Should borrow defi asset then return.] @test-case ASSETS-007
-public fun test_borrow_defi_asset_then_return() {
-    let mut s = test_scenario::begin(OWNER);
+// #[test]
+// // [TEST-CASE: Should borrow defi asset then return.] @test-case ASSETS-007
+// public fun test_borrow_defi_asset_then_return() {
+//     let mut s = test_scenario::begin(OWNER);
 
-    let mut clock = clock::create_for_testing(s.ctx());
+//     let mut clock = clock::create_for_testing(s.ctx());
 
-    init_vault::init_vault(&mut s, &mut clock);
-    init_vault::init_create_vault<SUI_TEST_COIN>(&mut s);
-    init_vault::init_create_reward_manager<SUI_TEST_COIN>(&mut s);
+//     init_vault::init_vault(&mut s, &mut clock);
+//     init_vault::init_create_vault<SUI_TEST_COIN>(&mut s);
+//     init_vault::init_create_reward_manager<SUI_TEST_COIN>(&mut s);
 
-    s.next_tx(OWNER);
-    {
-        let mut vault = s.take_shared<Vault<SUI_TEST_COIN>>();
+//     s.next_tx(OWNER);
+//     {
+//         let mut vault = s.take_shared<Vault<SUI_TEST_COIN>>();
 
-        let navi_account_cap = lending::create_account(s.ctx());
-        vault.add_new_defi_asset(
-            0,
-            navi_account_cap,
-        );
+//         let navi_account_cap = lending::create_account(s.ctx());
+//         vault.add_new_defi_asset(
+//             0,
+//             navi_account_cap,
+//         );
 
-        let navi_asset_type = vault_utils::parse_key<NaviAccountCap>(0);
-        let navi_account_cap = vault.borrow_defi_asset<SUI_TEST_COIN, NaviAccountCap>(
-            navi_asset_type,
-        );
-        assert!(!vault.contains_asset_type(navi_asset_type));
+//         let navi_asset_type = vault_utils::parse_key<NaviAccountCap>(0);
+//         let navi_account_cap = vault.borrow_defi_asset<SUI_TEST_COIN, NaviAccountCap>(
+//             navi_asset_type,
+//         );
+//         assert!(!vault.contains_asset_type(navi_asset_type));
 
-        vault.return_defi_asset(navi_asset_type, navi_account_cap);
-        assert!(vault.contains_asset_type(navi_asset_type));
+//         vault.return_defi_asset(navi_asset_type, navi_account_cap);
+//         assert!(vault.contains_asset_type(navi_asset_type));
 
-        test_scenario::return_shared(vault);
-    };
+//         test_scenario::return_shared(vault);
+//     };
 
-    clock.destroy_for_testing();
-    s.end();
-}
+//     clock.destroy_for_testing();
+//     s.end();
+// }
 
-#[test]
-#[expected_failure(abort_code = vault::ERR_ASSET_TYPE_NOT_FOUND, location = vault)]
-// [TEST-CASE: Should borrow defi asset fail if not exist.] @test-case ASSETS-008
-public fun test_borrow_defi_asset_fail_not_exist() {
-    let mut s = test_scenario::begin(OWNER);
+// #[test]
+// #[expected_failure(abort_code = vault::ERR_ASSET_TYPE_NOT_FOUND, location = vault)]
+// // [TEST-CASE: Should borrow defi asset fail if not exist.] @test-case ASSETS-008
+// public fun test_borrow_defi_asset_fail_not_exist() {
+//     let mut s = test_scenario::begin(OWNER);
 
-    let mut clock = clock::create_for_testing(s.ctx());
+//     let mut clock = clock::create_for_testing(s.ctx());
 
-    init_vault::init_vault(&mut s, &mut clock);
-    init_vault::init_create_vault<SUI_TEST_COIN>(&mut s);
-    init_vault::init_create_reward_manager<SUI_TEST_COIN>(&mut s);
+//     init_vault::init_vault(&mut s, &mut clock);
+//     init_vault::init_create_vault<SUI_TEST_COIN>(&mut s);
+//     init_vault::init_create_reward_manager<SUI_TEST_COIN>(&mut s);
 
-    s.next_tx(OWNER);
-    {
-        let mut vault = s.take_shared<Vault<SUI_TEST_COIN>>();
+//     s.next_tx(OWNER);
+//     {
+//         let mut vault = s.take_shared<Vault<SUI_TEST_COIN>>();
 
-        let navi_asset_type = vault_utils::parse_key<NaviAccountCap>(0);
-        let navi_account_cap = vault.borrow_defi_asset<SUI_TEST_COIN, NaviAccountCap>(
-            navi_asset_type,
-        );
-        transfer::public_transfer(navi_account_cap, OWNER);
+//         let navi_asset_type = vault_utils::parse_key<NaviAccountCap>(0);
+//         let navi_account_cap = vault.borrow_defi_asset<SUI_TEST_COIN, NaviAccountCap>(
+//             navi_asset_type,
+//         );
+//         transfer::public_transfer(navi_account_cap, OWNER);
 
-        test_scenario::return_shared(vault);
-    };
+//         test_scenario::return_shared(vault);
+//     };
 
-    clock.destroy_for_testing();
-    s.end();
-}
+//     clock.destroy_for_testing();
+//     s.end();
+// }
 
-#[test]
-#[expected_failure(abort_code = vault::ERR_ASSET_TYPE_NOT_FOUND, location = vault)]
-// [TEST-CASE: Should borrow defi asset fail if already borrowed.] @test-case ASSETS-009
-public fun test_borrow_defi_asset_fail_already_borrowed() {
-    let mut s = test_scenario::begin(OWNER);
+// #[test]
+// #[expected_failure(abort_code = vault::ERR_ASSET_TYPE_NOT_FOUND, location = vault)]
+// // [TEST-CASE: Should borrow defi asset fail if already borrowed.] @test-case ASSETS-009
+// public fun test_borrow_defi_asset_fail_already_borrowed() {
+//     let mut s = test_scenario::begin(OWNER);
 
-    let mut clock = clock::create_for_testing(s.ctx());
+//     let mut clock = clock::create_for_testing(s.ctx());
 
-    init_vault::init_vault(&mut s, &mut clock);
-    init_vault::init_create_vault<SUI_TEST_COIN>(&mut s);
-    init_vault::init_create_reward_manager<SUI_TEST_COIN>(&mut s);
+//     init_vault::init_vault(&mut s, &mut clock);
+//     init_vault::init_create_vault<SUI_TEST_COIN>(&mut s);
+//     init_vault::init_create_reward_manager<SUI_TEST_COIN>(&mut s);
 
-    s.next_tx(OWNER);
-    {
-        let mut vault = s.take_shared<Vault<SUI_TEST_COIN>>();
+//     s.next_tx(OWNER);
+//     {
+//         let mut vault = s.take_shared<Vault<SUI_TEST_COIN>>();
 
-        let navi_account_cap = lending::create_account(s.ctx());
-        vault.add_new_defi_asset(
-            0,
-            navi_account_cap,
-        );
+//         let navi_account_cap = lending::create_account(s.ctx());
+//         vault.add_new_defi_asset(
+//             0,
+//             navi_account_cap,
+//         );
 
-        let navi_asset_type = vault_utils::parse_key<NaviAccountCap>(0);
-        let navi_account_cap = vault.borrow_defi_asset<SUI_TEST_COIN, NaviAccountCap>(
-            navi_asset_type,
-        );
-        transfer::public_transfer(navi_account_cap, OWNER);
+//         let navi_asset_type = vault_utils::parse_key<NaviAccountCap>(0);
+//         let navi_account_cap = vault.borrow_defi_asset<SUI_TEST_COIN, NaviAccountCap>(
+//             navi_asset_type,
+//         );
+//         transfer::public_transfer(navi_account_cap, OWNER);
 
-        let navi_account_cap_2 = vault.borrow_defi_asset<SUI_TEST_COIN, NaviAccountCap>(
-            navi_asset_type,
-        );
-        transfer::public_transfer(navi_account_cap_2, OWNER);
+//         let navi_account_cap_2 = vault.borrow_defi_asset<SUI_TEST_COIN, NaviAccountCap>(
+//             navi_asset_type,
+//         );
+//         transfer::public_transfer(navi_account_cap_2, OWNER);
 
-        test_scenario::return_shared(vault);
-    };
+//         test_scenario::return_shared(vault);
+//     };
 
-    clock.destroy_for_testing();
-    s.end();
-}
+//     clock.destroy_for_testing();
+//     s.end();
+// }
 
 
 #[test, expected_failure(abort_code = vault::ERR_INVALID_COIN_ASSET_TYPE, location = vault)]

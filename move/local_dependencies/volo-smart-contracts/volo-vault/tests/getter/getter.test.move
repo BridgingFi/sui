@@ -1,7 +1,7 @@
 #[test_only]
 module volo_vault::getter_test;
 
-use lending_core::account::AccountCap as NaviAccountCap;
+// use lending_core::account::AccountCap as NaviAccountCap;
 use sui::clock;
 use sui::test_scenario;
 use volo_vault::init_vault;
@@ -80,13 +80,13 @@ public fun test_getter_epoch_loss() {
     s.end();
 }
 
-#[test]
-// [TEST-CASE: Should parse key.] @test-case GETTER-003
-public fun test_parse_key() {
-    let s = test_scenario::begin(OWNER);
+// #[test]
+// // [TEST-CASE: Should parse key.] @test-case GETTER-003
+// public fun test_parse_key() {
+//     let s = test_scenario::begin(OWNER);
 
-    let idx: u8 = 10;
-    let key = vault_utils::parse_key<NaviAccountCap>(idx);
+//     let idx: u8 = 10;
+//     let key = vault_utils::parse_key<NaviAccountCap>(idx);
 
-    s.end();
-}
+//     s.end();
+// }

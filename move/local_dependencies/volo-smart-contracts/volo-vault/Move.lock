@@ -2,58 +2,21 @@
 
 [move]
 version = 3
-manifest_digest = "778174E6D868D5086C2A8BAFB76D5BBDEB5F4013307522C8A5D98DA3782C2E0A"
-deps_digest = "CB99E3BEE139471F3765AE330F855F3B376156AA54F37DEDE11BBE5BB0D3BB74"
+manifest_digest = "8FDACB97602FFA1985BA5794D35248A4D6D649EF6CDC8B125CC6AF603847CB32"
+deps_digest = "397E6A9F7A624706DBDFEE056CE88391A15876868FD18A88504DA74EB458D697"
 dependencies = [
   { id = "Bridge", name = "Bridge" },
-  { id = "CetusClmm", name = "CetusClmm" },
   { id = "MoveStdlib", name = "MoveStdlib" },
-  { id = "Pyth", name = "Pyth" },
   { id = "Sui", name = "Sui" },
   { id = "SuiSystem", name = "SuiSystem" },
   { id = "Switchboard", name = "Switchboard" },
-  { id = "lending_core", name = "lending_core" },
-  { id = "mmt_v3", name = "mmt_v3" },
-  { id = "suilend", name = "suilend" },
 ]
 
 [[move.package]]
 id = "Bridge"
-source = { git = "https://github.com/MystenLabs/sui.git", rev = "f63c9fc78e2171fa174dc43e757ded416c204558", subdir = "crates/sui-framework/packages/bridge" }
+source = { git = "https://github.com/MystenLabs/sui.git", rev = "d75fae3aa7fa3545b5803980a1e0c965b8bbf48e", subdir = "crates/sui-framework/packages/bridge" }
 
 dependencies = [
-  { id = "MoveStdlib", name = "MoveStdlib" },
-  { id = "Sui", name = "Sui" },
-  { id = "SuiSystem", name = "SuiSystem" },
-]
-
-[[move.package]]
-id = "CetusClmm"
-source = { git = "https://github.com/CetusProtocol/cetus-clmm-interface.git", rev = "mainnet-v1.48.4", subdir = "sui/cetus_clmm" }
-
-dependencies = [
-  { id = "Bridge", name = "Bridge" },
-  { id = "IntegerMate", name = "IntegerMate" },
-  { id = "MoveSTL", name = "MoveSTL" },
-  { id = "MoveStdlib", name = "MoveStdlib" },
-  { id = "Sui", name = "Sui" },
-  { id = "SuiSystem", name = "SuiSystem" },
-]
-
-[[move.package]]
-id = "IntegerMate"
-source = { git = "https://github.com/CetusProtocol/integer-mate.git", rev = "sui-v1.1.2", subdir = "sui" }
-
-dependencies = [
-  { id = "Sui", name = "Sui" },
-]
-
-[[move.package]]
-id = "MoveSTL"
-source = { git = "https://github.com/CetusProtocol/move-stl.git", rev = "mainnet-v1.48.2", subdir = "sui" }
-
-dependencies = [
-  { id = "Bridge", name = "Bridge" },
   { id = "MoveStdlib", name = "MoveStdlib" },
   { id = "Sui", name = "Sui" },
   { id = "SuiSystem", name = "SuiSystem" },
@@ -61,20 +24,11 @@ dependencies = [
 
 [[move.package]]
 id = "MoveStdlib"
-source = { git = "https://github.com/MystenLabs/sui.git", rev = "f63c9fc78e2171fa174dc43e757ded416c204558", subdir = "crates/sui-framework/packages/move-stdlib" }
-
-[[move.package]]
-id = "Pyth"
-source = { git = "https://github.com/solendprotocol/pyth-crosschain.git", rev = "mainnet", subdir = "target_chains/sui/contracts" }
-
-dependencies = [
-  { id = "Sui", name = "Sui" },
-  { id = "Wormhole", name = "Wormhole" },
-]
+source = { git = "https://github.com/MystenLabs/sui.git", rev = "d75fae3aa7fa3545b5803980a1e0c965b8bbf48e", subdir = "crates/sui-framework/packages/move-stdlib" }
 
 [[move.package]]
 id = "Sui"
-source = { git = "https://github.com/MystenLabs/sui.git", rev = "f63c9fc78e2171fa174dc43e757ded416c204558", subdir = "crates/sui-framework/packages/sui-framework" }
+source = { git = "https://github.com/MystenLabs/sui.git", rev = "d75fae3aa7fa3545b5803980a1e0c965b8bbf48e", subdir = "crates/sui-framework/packages/sui-framework" }
 
 dependencies = [
   { id = "MoveStdlib", name = "MoveStdlib" },
@@ -82,134 +36,25 @@ dependencies = [
 
 [[move.package]]
 id = "SuiSystem"
-source = { git = "https://github.com/MystenLabs/sui.git", rev = "f63c9fc78e2171fa174dc43e757ded416c204558", subdir = "crates/sui-framework/packages/sui-system" }
+source = { git = "https://github.com/MystenLabs/sui.git", rev = "d75fae3aa7fa3545b5803980a1e0c965b8bbf48e", subdir = "crates/sui-framework/packages/sui-system" }
 
 dependencies = [
   { id = "MoveStdlib", name = "MoveStdlib" },
   { id = "Sui", name = "Sui" },
-]
-
-[[move.package]]
-id = "SupraOracle"
-source = { git = "https://github.com/naviprotocol/supra-oracle.git", rev = "main", subdir = "supra_holder" }
-
-dependencies = [
-  { id = "Sui", name = "Sui" },
-  { id = "supra_validator", name = "supra_validator" },
 ]
 
 [[move.package]]
 id = "Switchboard"
-source = { git = "https://github.com/Sui-Volo/volo-smart-contracts.git", rev = "main", subdir = "volo-vault/local_dependencies/switchboard_sui/on_demand" }
-
-dependencies = [
-  { id = "Sui", name = "Sui" },
-]
-
-[[move.package]]
-id = "Wormhole"
-source = { git = "https://github.com/solendprotocol/wormhole.git", rev = "e1698d3c72b15cdddd7da98ad43e151f83b72a0a", subdir = "sui/wormhole" }
-
-dependencies = [
-  { id = "Sui", name = "Sui" },
-]
-
-[[move.package]]
-id = "lending_core"
-source = { git = "https://github.com/Sui-Volo/volo-smart-contracts.git", rev = "main", subdir = "volo-vault/local_dependencies/protocol/lending_core" }
-
-dependencies = [
-  { id = "Sui", name = "Sui" },
-  { id = "math", name = "math" },
-  { id = "oracle", name = "oracle" },
-  { id = "utils", name = "utils" },
-]
-
-[[move.package]]
-id = "liquid_staking"
-source = { git = "https://github.com/solendprotocol/liquid-staking.git", rev = "main", subdir = "contracts" }
+source = { local = "../../switchboard-xyz-sui/on_demand" }
 
 dependencies = [
   { id = "Bridge", name = "Bridge" },
   { id = "MoveStdlib", name = "MoveStdlib" },
   { id = "Sui", name = "Sui" },
   { id = "SuiSystem", name = "SuiSystem" },
-]
-
-[[move.package]]
-id = "math"
-source = { git = "https://github.com/Sui-Volo/volo-smart-contracts.git", rev = "main", subdir = "volo-vault/local_dependencies/protocol/math" }
-
-dependencies = [
-  { id = "Sui", name = "Sui" },
-]
-
-[[move.package]]
-id = "mmt_v3"
-source = { git = "https://github.com/Sui-Volo/volo-smart-contracts.git", rev = "main", subdir = "volo-vault/local_dependencies/mmt_v3" }
-
-dependencies = [
-  { id = "Sui", name = "Sui" },
-]
-
-[[move.package]]
-id = "oracle"
-source = { git = "https://github.com/Sui-Volo/volo-smart-contracts.git", rev = "main", subdir = "volo-vault/local_dependencies/protocol/oracle" }
-
-dependencies = [
-  { id = "Pyth", name = "Pyth" },
-  { id = "Sui", name = "Sui" },
-  { id = "SupraOracle", name = "SupraOracle" },
-]
-
-[[move.package]]
-id = "sprungsui"
-source = { git = "https://github.com/Sui-Volo/volo-smart-contracts.git", rev = "main", subdir = "volo-vault/local_dependencies/suilend_d/sprungsui" }
-
-dependencies = [
-  { id = "Sui", name = "Sui" },
-]
-
-[[move.package]]
-id = "suilend"
-source = { git = "https://github.com/Sui-Volo/volo-smart-contracts.git", rev = "main", subdir = "volo-vault/local_dependencies/suilend_d/suilend" }
-
-dependencies = [
-  { id = "Bridge", name = "Bridge" },
-  { id = "MoveStdlib", name = "MoveStdlib" },
-  { id = "Pyth", name = "Pyth" },
-  { id = "Sui", name = "Sui" },
-  { id = "SuiSystem", name = "SuiSystem" },
-  { id = "liquid_staking", name = "liquid_staking" },
-  { id = "sprungsui", name = "sprungsui" },
-]
-
-[[move.package]]
-id = "supra_utils"
-source = { git = "https://github.com/naviprotocol/supra-oracle.git", rev = "main", subdir = "supra_utils" }
-
-dependencies = [
-  { id = "Sui", name = "Sui" },
-]
-
-[[move.package]]
-id = "supra_validator"
-source = { git = "https://github.com/naviprotocol/supra-oracle.git", rev = "main", subdir = "supra_validator" }
-
-dependencies = [
-  { id = "Sui", name = "Sui" },
-  { id = "supra_utils", name = "supra_utils" },
-]
-
-[[move.package]]
-id = "utils"
-source = { git = "https://github.com/Sui-Volo/volo-smart-contracts.git", rev = "main", subdir = "volo-vault/local_dependencies/protocol/utils" }
-
-dependencies = [
-  { id = "Sui", name = "Sui" },
 ]
 
 [move.toolchain-version]
-compiler-version = "1.57.2"
+compiler-version = "1.60.0"
 edition = "2024.beta"
 flavor = "sui"

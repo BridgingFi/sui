@@ -3,3 +3,15 @@ node_modules/
 pnpm-lock.yaml
 web/dist/
 
+# Test coverage files
+**/.coverage_map.mvcov
+
+# Move build artifacts
+*.trace
+
+# Environment variables and sensitive files
+*.env
+!*.env.example
+.env.local
+.env.*.local
+

@@ -1,7 +1,7 @@
 #[test_only]
 module volo_vault::reward_manager_test;
 
-use lending_core::lending;
+// use lending_core::lending;
 use std::type_name;
 use sui::clock;
 use sui::coin;
@@ -35,17 +35,17 @@ public fun test_create_reward_manager() {
     init_vault::init_vault(&mut s, &mut clock);
     init_vault::init_create_vault<SUI_TEST_COIN>(&mut s);
 
-    s.next_tx(OWNER);
-    {
-        let mut vault = s.take_shared<Vault<SUI_TEST_COIN>>();
+    // s.next_tx(OWNER);
+    // {
+    //     let mut vault = s.take_shared<Vault<SUI_TEST_COIN>>();
 
-        let navi_account_cap = lending::create_account(s.ctx());
-        vault.add_new_defi_asset(
-            0,
-            navi_account_cap,
-        );
-        test_scenario::return_shared(vault);
-    };
+    //     let navi_account_cap = lending::create_account(s.ctx());
+    //     vault.add_new_defi_asset(
+    //         0,
+    //         navi_account_cap,
+    //     );
+    //     test_scenario::return_shared(vault);
+    // };
 
     s.next_tx(OWNER);
     {
@@ -83,17 +83,17 @@ public fun test_create_reward_manager_fail_already_exists() {
     init_vault::init_vault(&mut s, &mut clock);
     init_vault::init_create_vault<SUI_TEST_COIN>(&mut s);
 
-    s.next_tx(OWNER);
-    {
-        let mut vault = s.take_shared<Vault<SUI_TEST_COIN>>();
+    // s.next_tx(OWNER);
+    // {
+    //     let mut vault = s.take_shared<Vault<SUI_TEST_COIN>>();
 
-        let navi_account_cap = lending::create_account(s.ctx());
-        vault.add_new_defi_asset(
-            0,
-            navi_account_cap,
-        );
-        test_scenario::return_shared(vault);
-    };
+    //     let navi_account_cap = lending::create_account(s.ctx());
+    //     vault.add_new_defi_asset(
+    //         0,
+    //         navi_account_cap,
+    //     );
+    //     test_scenario::return_shared(vault);
+    // };
 
     s.next_tx(OWNER);
     {

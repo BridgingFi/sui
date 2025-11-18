@@ -1,7 +1,7 @@
 #[test_only]
 module volo_vault::init_vault;
 
-use lending_core::lending;
+// use lending_core::lending;
 use sui::clock::Clock;
 use sui::test_scenario::{Self, Scenario};
 use volo_vault::init_lending;
@@ -72,19 +72,19 @@ public fun init_create_reward_manager<PrincipalCoinType>(s: &mut Scenario) {
     };
 }
 
-#[test_only]
-public fun init_navi_account_cap<PrincipalCoinType>(
-    s: &mut Scenario,
-    vault: &mut Vault<PrincipalCoinType>,
-) {
-    let owner = s.sender();
+// #[test_only]
+// public fun init_navi_account_cap<PrincipalCoinType>(
+//     s: &mut Scenario,
+//     vault: &mut Vault<PrincipalCoinType>,
+// ) {
+//     let owner = s.sender();
 
-    s.next_tx(owner);
-    {
-        let navi_account_cap = lending::create_account(s.ctx());
-        vault.add_new_defi_asset(
-            0,
-            navi_account_cap,
-        );
-    }
-}
+//     s.next_tx(owner);
+//     {
+//         let navi_account_cap = lending::create_account(s.ctx());
+//         vault.add_new_defi_asset(
+//             0,
+//             navi_account_cap,
+//         );
+//     }
+// }

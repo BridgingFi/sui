@@ -736,7 +736,7 @@ fun test_current_result_accessors() {
 }
 
 #[test_only]
-fun destroy_aggregator(aggregator: Aggregator) {
+public fun destroy_aggregator(aggregator: Aggregator) {
     let Aggregator {
         id,
         queue: _,
