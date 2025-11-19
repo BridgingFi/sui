@@ -1,6 +1,7 @@
 import { Card, CardBody, CardHeader, Spacer } from '@heroui/react';
 
 import { AppLayout } from '@/components/layout/AppLayout';
+import { VaultList } from '@/components/vault/VaultList';
 
 export const HomeRoute = () => {
   return (
@@ -14,16 +15,7 @@ export const HomeRoute = () => {
           </p>
         </header>
 
-        <Card>
-          <CardHeader>
-            <h2 className="text-lg font-medium">Getting started</h2>
-          </CardHeader>
-          <CardBody className="space-y-4">
-            <p>
-              Connect your wallet to view vault metrics, make a deposit, or request a withdrawal.
-            </p>
-          </CardBody>
-        </Card>
+        <VaultList />
 
         <Spacer y={8} />
       </section>

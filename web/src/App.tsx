@@ -1,7 +1,7 @@
-import { Route, Routes } from 'react-router-dom';
+import { Route, Routes } from "react-router-dom";
 
-import { AdminRoute } from '@/routes/admin';
-import { HomeRoute } from '@/routes/home';
+import { AdminRoute } from "@/routes/admin";
+import { HomeRoute } from "@/routes/home";
 
 export default function App() {
   return (
