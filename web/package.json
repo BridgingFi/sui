@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
+    "build:testnet": "tsc && vite build --mode testnet",
     "preview": "vite preview",
     "lint": "eslint \"src/**/*.{ts,tsx}\""
   },

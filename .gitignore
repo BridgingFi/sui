@@ -12,6 +12,9 @@ web/dist/
 # Environment variables and sensitive files
 *.env
 !*.env.example
+!*.env.development
+!*.env.testnet
+!*.env.production
 .env.local
 .env.*.local
 
