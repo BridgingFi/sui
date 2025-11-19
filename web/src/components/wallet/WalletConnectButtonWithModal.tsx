@@ -21,12 +21,38 @@ function truncateAddress(address: string): string {
   return `${address.slice(0, 4)}...${address.slice(-4)}`;
 }
 
+interface WalletConnectButtonProps {
+  /**
+   * Custom connect button to display when wallet is not connected.
+   * If not provided, uses default button with wallet icon.
+   * When connected, the component shows a dropdown menu with wallet info.
+   */
+  connectButton?: React.ReactNode;
+}
+
 /**
  * Wallet connect button using ConnectModal from @mysten/dapp-kit.
- * This version uses the official ConnectModal for wallet selection,
- * but wraps it with HeroUI Button as the trigger.
+ * - When disconnected: shows a connect button (customizable via `connectButton` prop)
+ * - When connected: shows a dropdown menu with wallet info and disconnect option
+ *
+ * Usage:
+ * ```tsx
+ * // For cases where you want to handle connected state separately:
+ * {!currentAccount ? (
+ *   <WalletConnectButtonWithModal
+ *     connectButton={<Button>Connect Wallet</Button>}
+ *   />
+ * ) : (
+ *   <Button>Your Action</Button>
+ * )}
+ *
+ * // For cases where you want full functionality (like Navbar):
+ * <WalletConnectButtonWithModal />
+ * ```
  */
-export function WalletConnectButtonWithModal() {
+export function WalletConnectButtonWithModal({
+  connectButton,
+}: WalletConnectButtonProps = {}) {
   const { currentWallet, isConnected } = useCurrentWallet();
   const currentAccount = useCurrentAccount();
   const { mutate: switchAccount } = useSwitchAccount();
@@ -57,15 +83,17 @@ export function WalletConnectButtonWithModal() {
 
   const menuItems = useMemo(() => {
     const items = [];
+
     if (hasMultipleAccounts && currentWallet) {
       accounts.forEach((account) => {
         const isCurrentAccount = account.address === currentAccount?.address;
+
         items.push(
           <DropdownItem
             key={account.address}
-            onPress={() => handleSwitchAccount(account)}
-            startContent={isCurrentAccount ? <Check /> : undefined}
             className={isCurrentAccount ? "font-semibold" : ""}
+            startContent={isCurrentAccount ? <Check /> : undefined}
+            onPress={() => handleSwitchAccount(account)}
           >
             {truncateAddress(account.address)}
           </DropdownItem>,
@@ -77,6 +105,7 @@ export function WalletConnectButtonWithModal() {
         </DropdownItem>,
       );
     }
+
     items.push(
       <DropdownItem
         key="disconnect"
@@ -87,6 +116,7 @@ export function WalletConnectButtonWithModal() {
         {isDisconnecting ? "Disconnecting..." : "Disconnect"}
       </DropdownItem>,
     );
+
     return items;
   }, [
     accounts,
@@ -98,15 +128,17 @@ export function WalletConnectButtonWithModal() {
     handleDisconnect,
   ]);
 
-  // If not connected, show ConnectModal with HeroUI Button as trigger
+  // If not connected, show ConnectModal with custom or default connect button
   // Using uncontrolled mode so ConnectModal manages its own state
   if (!isConnected || !currentWallet) {
     return (
       <ConnectModal
         trigger={
-          <Button color="primary" startContent={<Wallet />} variant="solid">
-            Connect Wallet
-          </Button>
+          connectButton || (
+            <Button color="primary" startContent={<Wallet />} variant="solid">
+              Connect Wallet
+            </Button>
+          )
         }
       />
     );

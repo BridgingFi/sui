@@ -1,3 +1,6 @@
+import type { VaultInfo } from "@/lib/types";
+
+import { useNavigate } from "react-router-dom";
 import {
   Card,
   CardBody,
@@ -10,6 +13,7 @@ import {
   TableHeader,
   TableRow,
 } from "@heroui/react";
+
 import { useVaultRegistry } from "@/hooks/useVaultRegistry";
 
 function truncateAddress(address: string): string {
@@ -19,6 +23,7 @@ function truncateAddress(address: string): string {
 function formatCoinType(coinType: string): string {
   // Extract coin name from type string (e.g., "0x...::usdc::USDC" -> "USDC")
   const parts = coinType.split("::");
+
   return parts[parts.length - 1] || coinType;
 }
 
@@ -43,6 +48,7 @@ function formatTimestamp(timestampMs: number): string {
   if (diffDays < 30) {
     return `${diffDays} days ago`;
   }
+
   return date.toLocaleDateString();
 }
 
@@ -50,7 +56,12 @@ function formatTimestamp(timestampMs: number): string {
  * Component to display list of registered vaults
  */
 export function VaultList() {
+  const navigate = useNavigate();
   const { vaults, isLoading, error } = useVaultRegistry();
+
+  const handleVaultClick = (vault: VaultInfo) => {
+    navigate(`/vault/${vault.vault_id}`);
+  };
 
   if (isLoading) {
     return (
@@ -67,9 +78,7 @@ export function VaultList() {
     return (
       <Card>
         <CardBody>
-          <p className="text-danger">
-            Error loading vaults: {error.message}
-          </p>
+          <p className="text-danger">Error loading vaults: {error.message}</p>
         </CardBody>
       </Card>
     );
@@ -106,9 +115,15 @@ export function VaultList() {
           </TableHeader>
           <TableBody>
             {vaults.map((vault) => (
-              <TableRow key={vault.vault_id}>
+              <TableRow
+                key={vault.vault_id}
+                className="cursor-pointer hover:bg-default-100"
+                onClick={() => handleVaultClick(vault)}
+              >
                 <TableCell>
-                  <code className="text-xs">{truncateAddress(vault.vault_id)}</code>
+                  <code className="text-xs">
+                    {truncateAddress(vault.vault_id)}
+                  </code>
                 </TableCell>
                 <TableCell>
                   <span className="font-medium">
@@ -116,7 +131,9 @@ export function VaultList() {
                   </span>
                 </TableCell>
                 <TableCell>
-                  <code className="text-xs">{truncateAddress(vault.creator)}</code>
+                  <code className="text-xs">
+                    {truncateAddress(vault.creator)}
+                  </code>
                 </TableCell>
                 <TableCell>{formatTimestamp(vault.created_at_ms)}</TableCell>
               </TableRow>
@@ -127,4 +144,3 @@ export function VaultList() {
     </Card>
   );
 }
-
