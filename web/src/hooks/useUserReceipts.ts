@@ -34,6 +34,7 @@ export function useUserReceipts(vaultId: string | null) {
       enabled:
         !!currentAccount?.address &&
         !!import.meta.env.VITE_VOLO_VAULT_PACKAGE_ID,
+      refetchInterval: 10000, // Refetch every 10 seconds to catch new receipts
     },
   );
 
@@ -60,6 +61,7 @@ export function useUserReceipts(vaultId: string | null) {
 
           return vaultId && receiptVaultId === vaultId;
         }
+
         return false;
       })
       .map((obj) => {
@@ -84,6 +86,7 @@ export function useUserReceipts(vaultId: string | null) {
             vaultId: receiptVaultId,
           };
         }
+
         return null;
       })
       .filter((r): r is UserReceipt => r !== null) || [];
@@ -95,5 +98,3 @@ export function useUserReceipts(vaultId: string | null) {
     refetch,
   };
 }
-
-

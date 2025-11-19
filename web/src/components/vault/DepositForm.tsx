@@ -6,6 +6,10 @@ import {
   CardBody,
   CardHeader,
   Input,
+  Modal,
+  ModalBody,
+  ModalContent,
+  ModalHeader,
   Spinner,
 } from "@heroui/react";
 import {
@@ -17,7 +21,7 @@ import { Transaction } from "@mysten/sui/transactions";
 import { useState } from "react";
 
 import { useCoinBalance } from "@/hooks/useCoinBalance";
-import { useUserReceipts } from "@/hooks/useUserReceipts";
+import { useReceiptDetails } from "@/hooks/useReceiptDetails";
 import { useVaultInfo } from "@/hooks/useVaultInfo";
 import { WalletConnectButtonWithModal } from "@/components/wallet/WalletConnectButtonWithModal";
 
@@ -43,13 +47,26 @@ function getCoinDecimals(coinType: string): number {
 
 interface DepositFormProps {
   vault: VaultInfo;
+  receiptId?: string | null; // Optional receipt ID for existing receipt deposit
+  isOpen?: boolean; // Whether modal is open (for modal mode)
+  onClose?: () => void; // Callback when modal closes
+  onSuccess?: () => void; // Callback when deposit succeeds
+  title?: string; // Custom title for the form
 }
 
 /**
  * Deposit form component
  * Handles both new receipt and existing receipt deposits
+ * Can be used as a standalone card or inside a modal
  */
-export function DepositForm({ vault }: DepositFormProps) {
+export function DepositForm({
+  vault,
+  receiptId: propReceiptId = null,
+  isOpen,
+  onClose,
+  onSuccess,
+  title,
+}: DepositFormProps) {
   const currentAccount = useCurrentAccount();
   const client = useSuiClient();
   const { mutate: signAndExecute, isPending } = useSignAndExecuteTransaction();
@@ -58,23 +75,32 @@ export function DepositForm({ vault }: DepositFormProps) {
   const coinType = vault.coin_type;
   const coinDecimals = getCoinDecimals(coinType);
 
-  const { receipts, isLoading: isLoadingReceipts } = useUserReceipts(
-    vault.vault_id,
-  );
   const {
     balance,
     formattedBalance,
     isLoading: isLoadingBalance,
   } = useCoinBalance(coinType);
 
+  // Query receipt details if receiptId is provided
+  const { details: receiptDetails } = useReceiptDetails(
+    vault.vault_id,
+    propReceiptId,
+  );
+
   useVaultInfo(vault.vault_id); // Query vault info for potential future use
 
   const [amount, setAmount] = useState("");
   const [error, setError] = useState<string | null>(null);
 
-  // Check if user has a receipt for this vault
-  const hasReceipt = receipts.length > 0;
-  const receiptId = hasReceipt && receipts[0] ? receipts[0].id : null;
+  const hasReceipt = propReceiptId !== null;
+  const hasPendingDeposit = receiptDetails?.status === 1; // PENDING_DEPOSIT
+
+  // Reset form when modal closes or receiptId changes
+  const handleClose = () => {
+    setAmount("");
+    setError(null);
+    onClose?.();
+  };
 
   // Handle MAX button click
   const handleMax = () => {
@@ -157,12 +183,12 @@ export function DepositForm({ vault }: DepositFormProps) {
       // The return value of moveCall can be directly used as an argument
       let optionReceipt;
 
-      if (hasReceipt && receiptId) {
+      if (hasReceipt && propReceiptId) {
         // Call option::some(receipt) to wrap receipt in Option
         optionReceipt = tx.moveCall({
           target: `${OPTION_PACKAGE_ID}::option::some`,
           typeArguments: [`${voloPackageId}::receipt::Receipt`],
-          arguments: [tx.object(receiptId)],
+          arguments: [tx.object(propReceiptId)],
         });
       } else {
         // Call option::none() to create Option::none
@@ -197,6 +223,11 @@ export function DepositForm({ vault }: DepositFormProps) {
           onSuccess: () => {
             setAmount("");
             setError(null);
+            onSuccess?.();
+            // Close modal if in modal mode
+            if (isOpen !== undefined) {
+              handleClose();
+            }
             // TODO: Show success toast
           },
           onError: (err) => {
@@ -209,147 +240,183 @@ export function DepositForm({ vault }: DepositFormProps) {
     }
   };
 
-  return (
-    <Card>
-      <CardHeader>
-        <h2 className="text-lg font-medium">Stake</h2>
-        {isLoadingReceipts && <Spinner className="ml-auto" size="sm" />}
-      </CardHeader>
-      <CardBody className="space-y-4">
-        {/* Wallet Balance Display */}
-        <div className="space-y-2">
-          <p className="text-sm text-default-500">Amount</p>
-          <div className="flex items-center gap-2">
-            <Input
-              classNames={{
-                input: "text-lg",
-                inputWrapper: "h-14",
-              }}
-              endContent={
-                <div className="flex items-center gap-2">
-                  <span className="text-default-500 text-sm">
-                    {coinType.split("::").pop() || "COIN"}
-                  </span>
-                  {currentAccount && (
-                    <div className="flex gap-1">
-                      <Button
-                        isDisabled={isLoadingBalance}
-                        size="sm"
-                        variant="light"
-                        onPress={handleHalf}
-                      >
-                        Half
-                      </Button>
-                      <Button
-                        isDisabled={isLoadingBalance}
-                        size="sm"
-                        variant="light"
-                        onPress={handleMax}
-                      >
-                        MAX
-                      </Button>
-                    </div>
-                  )}
-                </div>
-              }
-              placeholder="0.00"
-              startContent={
-                <div className="flex items-center justify-center w-6 h-6 rounded-full bg-default-200">
-                  <span className="text-xs font-bold">$</span>
-                </div>
-              }
-              type="number"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-            />
-          </div>
-          {currentAccount ? (
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-default-500">
+  const formContent = (
+    <div className="space-y-4">
+      {/* Wallet Balance Display */}
+      <div className="space-y-2">
+        <p className="text-sm text-default-500">Amount</p>
+        <div className="flex items-center gap-2">
+          <Input
+            classNames={{
+              input: "text-lg",
+              inputWrapper: "h-14",
+            }}
+            endContent={
+              <div className="flex items-center gap-2">
+                <span className="text-default-500 text-sm">
+                  {coinType.split("::").pop() || "COIN"}
+                </span>
+                {currentAccount && (
+                  <div className="flex gap-1">
+                    <Button
+                      isDisabled={isLoadingBalance}
+                      size="sm"
+                      variant="light"
+                      onPress={handleHalf}
+                    >
+                      Half
+                    </Button>
+                    <Button
+                      isDisabled={isLoadingBalance}
+                      size="sm"
+                      variant="light"
+                      onPress={handleMax}
+                    >
+                      MAX
+                    </Button>
+                  </div>
+                )}
+              </div>
+            }
+            placeholder="0.00"
+            startContent={
+              <div className="flex items-center justify-center w-6 h-6 rounded-full bg-default-200">
+                <span className="text-xs font-bold">$</span>
+              </div>
+            }
+            type="number"
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+          />
+        </div>
+        {currentAccount ? (
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-default-500">
+              {isLoadingBalance ? (
+                <Spinner size="sm" />
+              ) : (
+                `$${formattedBalance}`
+              )}
+            </span>
+            <div className="flex items-center gap-2">
+              <span className="text-default-500">Balance:</span>
+              <span className="font-medium">
                 {isLoadingBalance ? (
                   <Spinner size="sm" />
                 ) : (
-                  `$${formattedBalance}`
+                  `${formattedBalance} ${coinType.split("::").pop() || "COIN"}`
                 )}
               </span>
-              <div className="flex items-center gap-2">
-                <span className="text-default-500">Balance:</span>
-                <span className="font-medium">
-                  {isLoadingBalance ? (
-                    <Spinner size="sm" />
-                  ) : (
-                    `${formattedBalance} ${coinType.split("::").pop() || "COIN"}`
-                  )}
-                </span>
-              </div>
             </div>
-          ) : (
-            <p className="text-sm text-default-500">
-              Connect wallet to view balance
+          </div>
+        ) : (
+          <p className="text-sm text-default-500">
+            Connect wallet to view balance
+          </p>
+        )}
+      </div>
+
+      {/* Investment Details */}
+      <div className="space-y-2 pt-2 border-t border-default-200">
+        <div className="flex items-center justify-between text-sm">
+          <span className="text-default-500">Min Investment</span>
+          <span className="font-medium">
+            1 {coinType.split("::").pop() || "COIN"}
+          </span>
+        </div>
+        <div className="flex items-center justify-between text-sm">
+          <span className="text-default-500">Unstake Time</span>
+          <span className="font-medium">14:00 UTC Daily</span>
+        </div>
+      </div>
+
+      {/* Receipt Info (if depositing to existing receipt) */}
+      {hasReceipt && propReceiptId && (
+        <div className="rounded-lg bg-default-100 p-3">
+          <p className="text-xs text-default-500 mb-1">Receipt ID</p>
+          <p className="font-mono text-sm">
+            {propReceiptId.slice(0, 8)}...{propReceiptId.slice(-6)}
+          </p>
+          {hasPendingDeposit && (
+            <p className="text-xs text-warning mt-2">
+              ⚠️ This receipt has a pending deposit. Please wait for it to be
+              executed.
             </p>
           )}
         </div>
+      )}
 
-        {/* Investment Details */}
-        <div className="space-y-2 pt-2 border-t border-default-200">
-          <div className="flex items-center justify-between text-sm">
-            <span className="text-default-500">Min Investment</span>
-            <span className="font-medium">
-              1 {coinType.split("::").pop() || "COIN"}
-            </span>
-          </div>
-          <div className="flex items-center justify-between text-sm">
-            <span className="text-default-500">Unstake Time</span>
-            <span className="font-medium">14:00 UTC Daily</span>
-          </div>
+      {/* Error Message */}
+      {error && (
+        <div className="rounded-lg bg-danger-50 p-3">
+          <p className="text-sm text-danger">{error}</p>
         </div>
+      )}
 
-        {/* Receipt Info */}
-        {hasReceipt && currentAccount && (
-          <div className="rounded-lg bg-default-100 p-3">
-            <p className="text-xs text-default-500 mb-1">
-              Using existing receipt
-            </p>
-            <p className="text-xs font-mono">
-              {receiptId?.slice(0, 8)}...{receiptId?.slice(-6)}
-            </p>
-          </div>
-        )}
+      {/* Action Button */}
+      {!currentAccount ? (
+        <WalletConnectButtonWithModal
+          connectButton={
+            <Button fullWidth color="primary" size="lg">
+              Connect Wallet
+            </Button>
+          }
+        />
+      ) : (
+        <Button
+          fullWidth
+          color="primary"
+          isDisabled={
+            !amount ||
+            Number(amount) <= 0 ||
+            Number(amount) < 1.0 ||
+            Number(amount) > balance ||
+            !!hasPendingDeposit
+          }
+          isLoading={isPending}
+          size="lg"
+          onPress={handleDeposit}
+        >
+          {hasPendingDeposit
+            ? "Pending Deposit Exists"
+            : hasReceipt
+              ? "Add to Position"
+              : "Create Position"}
+        </Button>
+      )}
+    </div>
+  );
 
-        {/* Error Message */}
-        {error && (
-          <div className="rounded-lg bg-danger-50 p-3">
-            <p className="text-sm text-danger">{error}</p>
-          </div>
-        )}
+  // Determine title
+  const formTitle =
+    title ||
+    (isOpen !== undefined
+      ? hasReceipt
+        ? "Add to Position"
+        : "Stake"
+      : "Stake");
 
-        {/* Action Button */}
-        {!currentAccount ? (
-          <WalletConnectButtonWithModal
-            connectButton={
-              <Button fullWidth color="primary" size="lg">
-                Connect Wallet
-              </Button>
-            }
-          />
-        ) : (
-          <Button
-            fullWidth
-            color="primary"
-            isDisabled={
-              !amount ||
-              Number(amount) <= 0 ||
-              Number(amount) < 1.0 ||
-              Number(amount) > balance
-            }
-            isLoading={isPending}
-            size="lg"
-            onPress={handleDeposit}
-          >
-            Deposit
-          </Button>
-        )}
-      </CardBody>
+  // If used as modal
+  if (isOpen !== undefined) {
+    return (
+      <Modal isOpen={isOpen} size="2xl" onClose={handleClose}>
+        <ModalContent>
+          <ModalHeader>
+            <h2 className="text-lg font-medium">{formTitle}</h2>
+          </ModalHeader>
+          <ModalBody className="pb-6">{formContent}</ModalBody>
+        </ModalContent>
+      </Modal>
+    );
+  }
+
+  // If used as standalone card
+  return (
+    <Card>
+      <CardHeader>
+        <h2 className="text-lg font-medium">{formTitle}</h2>
+      </CardHeader>
+      <CardBody>{formContent}</CardBody>
     </Card>
   );
 }

@@ -16,6 +16,8 @@ import {
 import { useNavigate } from "react-router-dom";
 
 import { DepositForm } from "@/components/vault/DepositForm";
+import { UserPositions } from "@/components/vault/UserPositions";
+import { useUserReceipts } from "@/hooks/useUserReceipts";
 import { useVaultInfo } from "@/hooks/useVaultInfo";
 import { useVaultShareRatioHistory } from "@/hooks/useVaultShareRatioHistory";
 
@@ -38,6 +40,28 @@ export function VaultDetail({ vault }: VaultDetailProps) {
 
   const { history: shareRatioHistory, isLoading: isLoadingHistory } =
     useVaultShareRatioHistory(vault.vault_id, 50);
+
+  // Check if user has receipts for this vault
+  const { receipts, refetch: refetchReceipts } = useUserReceipts(
+    vault.vault_id,
+  );
+  const hasReceipts = receipts.length > 0;
+
+  // Handle deposit success to refresh positions
+  // Use delayed refetch with retries since receipts may not be immediately available
+  const handleDepositSuccess = () => {
+    // First refetch immediately
+    refetchReceipts();
+
+    // Then retry after delays since receipts may not be immediately available
+    setTimeout(() => {
+      refetchReceipts();
+    }, 2000); // Retry after 2 seconds
+
+    setTimeout(() => {
+      refetchReceipts();
+    }, 5000); // Retry after 5 seconds
+  };
 
   // Format share price for display (divide share_ratio by DECIMALS)
   // share_price = share_ratio / DECIMALS = total_usd_value / total_shares
@@ -69,124 +93,129 @@ export function VaultDetail({ vault }: VaultDetailProps) {
         </p>
       </header>
 
+      {/* Vault Information - Full width */}
+      <Card>
+        <CardHeader>
+          <h2 className="text-lg font-medium">Vault Information</h2>
+        </CardHeader>
+        <CardBody className="space-y-4">
+          <div>
+            <p className="text-sm text-default-500">Coin Type</p>
+            <p className="font-medium">{vault.coin_type}</p>
+          </div>
+          <div>
+            <p className="text-sm text-default-500">Creator</p>
+            <p className="font-mono text-sm">
+              {vault.creator.slice(0, 8)}...{vault.creator.slice(-6)}
+            </p>
+          </div>
+          <div>
+            <p className="text-sm text-default-500">Created</p>
+            <p className="text-sm">
+              {new Date(vault.created_at_ms).toLocaleString()}
+            </p>
+          </div>
+
+          {/* Vault Metrics */}
+          <div className="pt-4 border-t border-default-200">
+            <p className="text-sm font-medium mb-3">Vault Metrics</p>
+            {isLoadingVaultInfo ? (
+              <div className="flex items-center gap-2">
+                <Spinner size="sm" />
+                <span className="text-sm text-default-500">Loading...</span>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-default-500">
+                    Deposit Fee Rate
+                  </span>
+                  <span className="text-sm font-medium">
+                    {depositFeeRate !== null
+                      ? `${depositFeeRate / 100}%`
+                      : "N/A"}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-default-500">Total Shares</span>
+                  <span className="text-sm font-medium font-mono">
+                    {totalShares !== null ? totalShares.toString() : "N/A"}
+                  </span>
+                </div>
+              </div>
+            )}
+          </div>
+        </CardBody>
+      </Card>
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="space-y-6">
+        {/* User Positions - Right column on desktop, Order 1 on mobile */}
+        <div className="space-y-6 lg:order-2">
+          <UserPositions vault={vault} />
+          <DepositForm
+            title={hasReceipts ? "New Position" : "Deposit"}
+            vault={vault}
+            onSuccess={handleDepositSuccess}
+          />
+        </div>
+
+        {/* Share Price History - Left column on desktop, Order 2 on mobile */}
+        <div className="lg:order-1">
           <Card>
             <CardHeader>
-              <h2 className="text-lg font-medium">Vault Information</h2>
+              <h2 className="text-lg font-medium">Share Price History</h2>
             </CardHeader>
-            <CardBody className="space-y-4">
-              <div>
-                <p className="text-sm text-default-500">Coin Type</p>
-                <p className="font-medium">{vault.coin_type}</p>
-              </div>
-              <div>
-                <p className="text-sm text-default-500">Creator</p>
-                <p className="font-mono text-sm">
-                  {vault.creator.slice(0, 8)}...{vault.creator.slice(-6)}
-                </p>
-              </div>
-              <div>
-                <p className="text-sm text-default-500">Created</p>
-                <p className="text-sm">
-                  {new Date(vault.created_at_ms).toLocaleString()}
-                </p>
-              </div>
-
-              {/* Vault Metrics */}
-              <div className="pt-4 border-t border-default-200">
-                <p className="text-sm font-medium mb-3">Vault Metrics</p>
-                {isLoadingVaultInfo ? (
-                  <div className="flex items-center gap-2">
-                    <Spinner size="sm" />
-                    <span className="text-sm text-default-500">Loading...</span>
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-default-500">
-                        Deposit Fee Rate
-                      </span>
-                      <span className="text-sm font-medium">
-                        {depositFeeRate !== null
-                          ? `${depositFeeRate / 100}%`
-                          : "N/A"}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-default-500">
-                        Total Shares
-                      </span>
-                      <span className="text-sm font-medium font-mono">
-                        {totalShares !== null ? totalShares.toString() : "N/A"}
-                      </span>
-                    </div>
-                  </div>
-                )}
-              </div>
+            <CardBody>
+              {isLoadingHistory ? (
+                <div className="flex items-center justify-center py-8">
+                  <Spinner size="lg" />
+                </div>
+              ) : shareRatioHistory.length === 0 ? (
+                <div className="text-center py-8 text-default-500">
+                  <p>No share price history available.</p>
+                  <p className="text-sm mt-2">
+                    Share price events are emitted when deposits or withdrawals
+                    occur.
+                  </p>
+                </div>
+              ) : (
+                <Table aria-label="Share price history">
+                  <TableHeader>
+                    <TableColumn>Timestamp</TableColumn>
+                    <TableColumn>Share Price</TableColumn>
+                    <TableColumn>Transaction</TableColumn>
+                  </TableHeader>
+                  <TableBody>
+                    {shareRatioHistory.map((item, index) => (
+                      <TableRow key={`${item.transactionDigest}-${index}`}>
+                        <TableCell>
+                          {item.timestamp > 0
+                            ? new Date(item.timestamp).toLocaleString()
+                            : "N/A"}
+                        </TableCell>
+                        <TableCell className="font-mono">
+                          {formatSharePrice(item.shareRatio)}
+                        </TableCell>
+                        <TableCell>
+                          <a
+                            className="text-primary hover:underline text-sm"
+                            href={`https://suiscan.xyz/mainnet/tx/${item.transactionDigest}`}
+                            rel="noopener noreferrer"
+                            target="_blank"
+                          >
+                            {item.transactionDigest.slice(0, 8)}...
+                            {item.transactionDigest.slice(-6)}
+                          </a>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
             </CardBody>
           </Card>
         </div>
-
-        <div className="space-y-6">
-          <DepositForm vault={vault} />
-        </div>
       </div>
-
-      {/* Share Price History */}
-      <Card>
-        <CardHeader>
-          <h2 className="text-lg font-medium">Share Price History</h2>
-        </CardHeader>
-        <CardBody>
-          {isLoadingHistory ? (
-            <div className="flex items-center justify-center py-8">
-              <Spinner size="lg" />
-            </div>
-          ) : shareRatioHistory.length === 0 ? (
-            <div className="text-center py-8 text-default-500">
-              <p>No share price history available.</p>
-              <p className="text-sm mt-2">
-                Share price events are emitted when deposits or withdrawals
-                occur.
-              </p>
-            </div>
-          ) : (
-            <Table aria-label="Share price history">
-              <TableHeader>
-                <TableColumn>Timestamp</TableColumn>
-                <TableColumn>Share Price</TableColumn>
-                <TableColumn>Transaction</TableColumn>
-              </TableHeader>
-              <TableBody>
-                {shareRatioHistory.map((item, index) => (
-                  <TableRow key={`${item.transactionDigest}-${index}`}>
-                    <TableCell>
-                      {item.timestamp > 0
-                        ? new Date(item.timestamp).toLocaleString()
-                        : "N/A"}
-                    </TableCell>
-                    <TableCell className="font-mono">
-                      {formatSharePrice(item.shareRatio)}
-                    </TableCell>
-                    <TableCell>
-                      <a
-                        className="text-primary hover:underline text-sm"
-                        href={`https://suiscan.xyz/mainnet/tx/${item.transactionDigest}`}
-                        rel="noopener noreferrer"
-                        target="_blank"
-                      >
-                        {item.transactionDigest.slice(0, 8)}...
-                        {item.transactionDigest.slice(-6)}
-                      </a>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-        </CardBody>
-      </Card>
 
       <Spacer y={8} />
     </section>
