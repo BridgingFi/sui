@@ -1,31 +1,54 @@
-import { Card, CardBody, CardHeader } from '@heroui/react';
+import { useParams, Navigate } from "react-router-dom";
 
-import { AppLayout } from '@/components/layout/AppLayout';
+import { AppLayout } from "@/components/layout/AppLayout";
+import { AdminVaultDetail } from "@/components/admin/AdminVaultDetail";
+import { AdminVaultList } from "@/components/admin/AdminVaultList";
+import { useVaultRegistry } from "@/hooks/useVaultRegistry";
 
+/**
+ * Admin route component
+ * Route: /admin or /admin/:vaultId
+ */
 export const AdminRoute = () => {
+  const { vaultId } = useParams<{ vaultId?: string }>();
+  const { vaults, isLoading, refetch, isFetching } = useVaultRegistry();
+
+  if (isLoading) {
+    return (
+      <AppLayout>
+        <div className="flex items-center justify-center py-8">
+          <p className="text-default-500">Loading vaults...</p>
+        </div>
+      </AppLayout>
+    );
+  }
+
+  // If vaultId is provided, show vault detail
+  if (vaultId) {
+    const vault = vaults.find((v) => v.vault_id === vaultId);
+
+    if (!vault) {
+      return <Navigate replace to="/admin" />;
+    }
+
+    return (
+      <AppLayout>
+        <AdminVaultDetail vault={vault} />
+      </AppLayout>
+    );
+  }
+
+  // Otherwise show vault list
+  // Note: isFetching is only passed when isLoading is false (component is rendered)
+  // This is because isLoading = isFetching && !data, so if isLoading is true,
+  // the component won't render anyway
   return (
     <AppLayout>
-      <section className="space-y-6">
-        <header className="space-y-2">
-          <h1 className="text-3xl font-semibold">Admin Console</h1>
-          <p className="text-default-500">
-            Monitor queued deposits and withdrawals, and execute batched operations once the
-            privileged tooling is connected.
-          </p>
-        </header>
-
-        <Card>
-          <CardHeader>
-            <h2 className="text-lg font-medium">Coming soon</h2>
-          </CardHeader>
-          <CardBody>
-            <p>
-              The initial MVP focuses on end-user flows. Admin execution dashboards will be added in
-              Phase 1.
-            </p>
-          </CardBody>
-        </Card>
-      </section>
+      <AdminVaultList
+        isFetchingRegistry={isFetching}
+        refetchRegistry={refetch}
+        vaults={vaults || []}
+      />
     </AppLayout>
   );
 };

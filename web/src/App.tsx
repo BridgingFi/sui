@@ -9,7 +9,7 @@ export default function App() {
     <Routes>
       <Route element={<HomeRoute />} path="/" />
       <Route element={<VaultDetailRoute />} path="/vault/:vaultId" />
-      <Route element={<AdminRoute />} path="/admin" />
+      <Route element={<AdminRoute />} path="/admin/:vaultId?" />
     </Routes>
   );
 }

@@ -1,0 +1,516 @@
+import type { VaultInfo } from "@/lib/types";
+import type { DepositRequest } from "@/hooks/useVaultRequests";
+
+import {
+  Button,
+  Card,
+  CardBody,
+  CardHeader,
+  Spinner,
+  Table,
+  TableBody,
+  TableCell,
+  TableColumn,
+  TableHeader,
+  TableRow,
+} from "@heroui/react";
+import {
+  useCurrentAccount,
+  useSignAndExecuteTransaction,
+} from "@mysten/dapp-kit";
+import { Transaction } from "@mysten/sui/transactions";
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+
+import {
+  useDepositRequests,
+  useWithdrawRequests,
+} from "@/hooks/useVaultRequests";
+
+const VOLO_VAULT_PACKAGE_ID = import.meta.env.VITE_VOLO_VAULT_PACKAGE_ID || "";
+const OPERATION_OBJECT_ID = import.meta.env.VITE_OPERATION_OBJECT_ID || "";
+const OPERATOR_CAP_ID = import.meta.env.VITE_OPERATOR_CAP_ID || "";
+const ORACLE_CONFIG_ID = import.meta.env.VITE_ORACLE_CONFIG_ID || "";
+const CLOCK_OBJECT_ID = "0x6"; // Standard Sui Clock object ID
+
+interface AdminVaultDetailProps {
+  vault: VaultInfo;
+}
+
+function truncateAddress(address: string): string {
+  return `${address.slice(0, 8)}...${address.slice(-6)}`;
+}
+
+function formatAmount(amount: number, decimals: number = 6): string {
+  return (amount / Math.pow(10, decimals)).toFixed(6);
+}
+
+function formatExpectedShares(shares: string): string {
+  try {
+    const bigIntShares = BigInt(shares);
+
+    // Assuming shares use 9 decimals (same as DECIMALS in vault_utils)
+    const decimals = BigInt(1e9);
+    const value = Number(bigIntShares) / Number(decimals);
+
+    return value.toFixed(6);
+  } catch {
+    return shares;
+  }
+}
+
+const PAGE_SIZE = 20;
+
+/**
+ * Admin vault detail component
+ * Displays vault information and all deposit/withdraw requests with execute/cancel actions
+ */
+export function AdminVaultDetail({ vault }: AdminVaultDetailProps) {
+  const navigate = useNavigate();
+  const currentAccount = useCurrentAccount();
+
+  const { mutate: signAndExecute, isPending } = useSignAndExecuteTransaction();
+
+  // Pagination state for deposit requests
+  const [depositCursor, setDepositCursor] = useState<string | undefined>(
+    undefined,
+  );
+  const [depositCursors, setDepositCursors] = useState<string[]>([]); // History of cursors for "previous page"
+
+  // Pagination state for withdraw requests
+  const [withdrawCursor, setWithdrawCursor] = useState<string | undefined>(
+    undefined,
+  );
+  const [withdrawCursors, setWithdrawCursors] = useState<string[]>([]); // History of cursors for "previous page"
+
+  const {
+    data: depositRequestsData,
+    isLoading: isLoadingDepositRequests,
+    refetch: refetchDepositRequests,
+  } = useDepositRequests(vault.vault_id, {
+    limit: PAGE_SIZE,
+    cursor: depositCursor,
+  });
+
+  const {
+    data: withdrawRequestsData,
+    isLoading: isLoadingWithdrawRequests,
+    refetch: refetchWithdrawRequests,
+  } = useWithdrawRequests(vault.vault_id, {
+    limit: PAGE_SIZE,
+    cursor: withdrawCursor,
+  });
+
+  // Ensure requests are always arrays
+  const depositRequests = depositRequestsData?.requests || [];
+  const withdrawRequests = withdrawRequestsData?.requests || [];
+
+  // Handle deposit pagination
+  const handleDepositNextPage = () => {
+    if (depositRequestsData?.pagination.nextCursor) {
+      setDepositCursors([...depositCursors, depositCursor || ""]);
+      setDepositCursor(depositRequestsData.pagination.nextCursor);
+    }
+  };
+
+  const handleDepositPreviousPage = () => {
+    if (depositCursors.length > 0) {
+      const newCursors = [...depositCursors];
+
+      newCursors.pop();
+      setDepositCursors(newCursors);
+
+      setDepositCursor(
+        newCursors.length > 0 ? newCursors[newCursors.length - 1] : undefined,
+      );
+    } else {
+      setDepositCursor(undefined);
+    }
+  };
+
+  // Handle withdraw pagination
+  const handleWithdrawNextPage = () => {
+    if (withdrawRequestsData?.pagination.nextCursor) {
+      setWithdrawCursors([...withdrawCursors, withdrawCursor || ""]);
+      setWithdrawCursor(withdrawRequestsData.pagination.nextCursor);
+    }
+  };
+
+  const handleWithdrawPreviousPage = () => {
+    if (withdrawCursors.length > 0) {
+      const newCursors = [...withdrawCursors];
+
+      newCursors.pop();
+      setWithdrawCursors(newCursors);
+
+      setWithdrawCursor(
+        newCursors.length > 0 ? newCursors[newCursors.length - 1] : undefined,
+      );
+    } else {
+      setWithdrawCursor(undefined);
+    }
+  };
+
+  const refetchRequests = () => {
+    refetchDepositRequests();
+    refetchWithdrawRequests();
+  };
+
+  const [executingRequestId, setExecutingRequestId] = useState<number | null>(
+    null,
+  );
+  const [cancellingRequestId, setCancellingRequestId] = useState<number | null>(
+    null,
+  );
+
+  const handleExecuteDeposit = async (request: DepositRequest) => {
+    if (!currentAccount || !OPERATION_OBJECT_ID || !OPERATOR_CAP_ID) {
+      alert(
+        "Missing required configuration: OPERATION_OBJECT_ID or OPERATOR_CAP_ID",
+      );
+
+      return;
+    }
+
+    setExecutingRequestId(Number(request.request_id));
+
+    try {
+      const tx = new Transaction();
+
+      // Extract coin type from vault coin_type
+      const coinType = vault.coin_type;
+
+      // Call execute_deposit
+      // Note: max_shares_received should be calculated based on current vault state
+      // For now, we'll use expected_shares * 1.1 (10% slippage tolerance)
+      const expectedSharesBigInt = BigInt(request.expected_shares);
+      const maxSharesReceived =
+        (expectedSharesBigInt * BigInt(110)) / BigInt(100); // 10% slippage
+
+      tx.moveCall({
+        target: `${VOLO_VAULT_PACKAGE_ID}::operation::execute_deposit`,
+        typeArguments: [coinType],
+        arguments: [
+          tx.object(OPERATION_OBJECT_ID),
+          tx.object(OPERATOR_CAP_ID),
+          tx.object(vault.vault_id),
+          tx.object(vault.reward_manager_id),
+          tx.object(CLOCK_OBJECT_ID),
+          tx.object(ORACLE_CONFIG_ID || CLOCK_OBJECT_ID), // Fallback to clock if oracle config not set
+          tx.pure.u64(request.request_id),
+          tx.pure.u256(maxSharesReceived.toString()),
+        ],
+      });
+
+      signAndExecute(
+        {
+          transaction: tx as any,
+        },
+        {
+          onSuccess: async () => {
+            setExecutingRequestId(null);
+            // Wait a bit for events to be indexed
+            setTimeout(() => {
+              refetchRequests();
+            }, 2000);
+          },
+          onError: (err) => {
+            setExecutingRequestId(null);
+            alert(`Execute deposit failed: ${err.message || "Unknown error"}`);
+          },
+        },
+      );
+    } catch (err) {
+      setExecutingRequestId(null);
+      alert(
+        `Execute deposit failed: ${err instanceof Error ? err.message : "Unknown error"}`,
+      );
+    }
+  };
+
+  const handleCancelDeposit = async (request: DepositRequest) => {
+    if (!currentAccount || !OPERATION_OBJECT_ID || !OPERATOR_CAP_ID) {
+      alert(
+        "Missing required configuration: OPERATION_OBJECT_ID or OPERATOR_CAP_ID",
+      );
+
+      return;
+    }
+
+    setCancellingRequestId(Number(request.request_id));
+
+    try {
+      const tx = new Transaction();
+
+      // Extract coin type from vault coin_type
+      const coinType = vault.coin_type;
+
+      // Call cancel_user_deposit
+      tx.moveCall({
+        target: `${VOLO_VAULT_PACKAGE_ID}::operation::cancel_user_deposit`,
+        typeArguments: [coinType],
+        arguments: [
+          tx.object(OPERATION_OBJECT_ID),
+          tx.object(OPERATOR_CAP_ID),
+          tx.object(vault.vault_id),
+          tx.pure.u64(request.request_id),
+          tx.pure.address(request.receipt_id),
+          tx.pure.address(request.recipient),
+          tx.object(CLOCK_OBJECT_ID),
+        ],
+      });
+
+      signAndExecute(
+        {
+          transaction: tx as any,
+        },
+        {
+          onSuccess: async () => {
+            setCancellingRequestId(null);
+            // Wait a bit for events to be indexed
+            setTimeout(() => {
+              refetchRequests();
+            }, 2000);
+          },
+          onError: (err) => {
+            setCancellingRequestId(null);
+            alert(`Cancel deposit failed: ${err.message || "Unknown error"}`);
+          },
+        },
+      );
+    } catch (err) {
+      setCancellingRequestId(null);
+      alert(
+        `Cancel deposit failed: ${err instanceof Error ? err.message : "Unknown error"}`,
+      );
+    }
+  };
+
+  return (
+    <section className="space-y-8">
+      <header className="space-y-2">
+        <button
+          className="text-default-500 hover:text-foreground mb-4"
+          onClick={() => navigate("/admin")}
+        >
+          ← Back to Admin
+        </button>
+        <h1 className="text-3xl font-semibold">Admin - Vault Details</h1>
+        <p className="text-default-500">
+          Vault ID: {truncateAddress(vault.vault_id)}
+        </p>
+        <p className="text-default-500">
+          Coin Type: {vault.coin_type.split("::").pop() || vault.coin_type}
+        </p>
+      </header>
+
+      {/* Deposit Requests */}
+      <Card>
+        <CardHeader>
+          <h2 className="text-lg font-medium">Deposit Requests</h2>
+          <span className="text-sm text-default-500 ml-auto">
+            {depositRequests.length} requests
+            {depositCursor && " (page)"}
+          </span>
+        </CardHeader>
+        <CardBody>
+          {isLoadingDepositRequests ? (
+            <div className="flex items-center justify-center py-8">
+              <Spinner size="lg" />
+              <p className="ml-4 text-default-500">
+                Loading deposit requests...
+              </p>
+            </div>
+          ) : depositRequests.length === 0 ? (
+            <div className="text-center py-8 text-default-500">
+              <p>No active deposit requests.</p>
+            </div>
+          ) : (
+            <>
+              <Table aria-label="Deposit requests">
+                <TableHeader>
+                  <TableColumn>REQUEST ID</TableColumn>
+                  <TableColumn>RECEIPT ID</TableColumn>
+                  <TableColumn>RECIPIENT</TableColumn>
+                  <TableColumn>AMOUNT</TableColumn>
+                  <TableColumn>EXPECTED SHARES</TableColumn>
+                  <TableColumn>ACTIONS</TableColumn>
+                </TableHeader>
+                <TableBody>
+                  {depositRequests.map((item) => (
+                    <TableRow key={item.request_id}>
+                      <TableCell>
+                        <code className="text-xs">{item.request_id}</code>
+                      </TableCell>
+                      <TableCell>
+                        <code className="text-xs">
+                          {truncateAddress(item.receipt_id)}
+                        </code>
+                      </TableCell>
+                      <TableCell>
+                        <code className="text-xs">
+                          {truncateAddress(item.recipient)}
+                        </code>
+                      </TableCell>
+                      <TableCell>
+                        <span className="font-medium">
+                          {formatAmount(Number(item.amount))}
+                        </span>
+                      </TableCell>
+                      <TableCell>
+                        <span className="font-mono text-sm">
+                          {formatExpectedShares(String(item.expected_shares))}
+                        </span>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex gap-2">
+                          <Button
+                            color="primary"
+                            isDisabled={
+                              isPending ||
+                              executingRequestId === item.request_id ||
+                              cancellingRequestId === item.request_id
+                            }
+                            isLoading={executingRequestId === item.request_id}
+                            size="sm"
+                            onPress={() => handleExecuteDeposit(item)}
+                          >
+                            Execute
+                          </Button>
+                          <Button
+                            color="danger"
+                            isDisabled={
+                              isPending ||
+                              executingRequestId === item.request_id ||
+                              cancellingRequestId === item.request_id
+                            }
+                            isLoading={cancellingRequestId === item.request_id}
+                            size="sm"
+                            variant="light"
+                            onPress={() => handleCancelDeposit(item)}
+                          >
+                            Cancel
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+              {/* Pagination controls */}
+              <div className="flex items-center justify-between mt-4 pt-4 border-t border-default-200">
+                <Button
+                  isDisabled={depositCursors.length === 0 && !depositCursor}
+                  size="sm"
+                  variant="light"
+                  onPress={handleDepositPreviousPage}
+                >
+                  Previous
+                </Button>
+                <span className="text-sm text-default-500">
+                  Page {depositCursors.length + 1}
+                </span>
+                <Button
+                  isDisabled={!depositRequestsData?.pagination.hasNextPage}
+                  size="sm"
+                  variant="light"
+                  onPress={handleDepositNextPage}
+                >
+                  Next
+                </Button>
+              </div>
+            </>
+          )}
+        </CardBody>
+      </Card>
+
+      {/* Withdraw Requests */}
+      <Card>
+        <CardHeader>
+          <h2 className="text-lg font-medium">Withdraw Requests</h2>
+          <span className="text-sm text-default-500 ml-auto">
+            {withdrawRequests.length} requests
+            {withdrawCursor && " (page)"}
+          </span>
+        </CardHeader>
+        <CardBody>
+          {isLoadingWithdrawRequests ? (
+            <div className="flex items-center justify-center py-8">
+              <Spinner size="lg" />
+              <p className="ml-4 text-default-500">
+                Loading withdraw requests...
+              </p>
+            </div>
+          ) : withdrawRequests.length === 0 ? (
+            <div className="text-center py-8 text-default-500">
+              <p>No active withdraw requests.</p>
+            </div>
+          ) : (
+            <>
+              <Table aria-label="Withdraw requests">
+                <TableHeader>
+                  <TableColumn>REQUEST ID</TableColumn>
+                  <TableColumn>RECEIPT ID</TableColumn>
+                  <TableColumn>RECIPIENT</TableColumn>
+                  <TableColumn>SHARES</TableColumn>
+                  <TableColumn>EXPECTED AMOUNT</TableColumn>
+                </TableHeader>
+                <TableBody>
+                  {withdrawRequests.map((item) => (
+                    <TableRow key={item.request_id}>
+                      <TableCell>
+                        <code className="text-xs">{item.request_id}</code>
+                      </TableCell>
+                      <TableCell>
+                        <code className="text-xs">
+                          {truncateAddress(item.receipt_id)}
+                        </code>
+                      </TableCell>
+                      <TableCell>
+                        <code className="text-xs">
+                          {truncateAddress(item.recipient)}
+                        </code>
+                      </TableCell>
+                      <TableCell>
+                        <span className="font-mono text-sm">
+                          {formatExpectedShares(String(item.shares))}
+                        </span>
+                      </TableCell>
+                      <TableCell>
+                        <span className="font-medium">
+                          {formatAmount(Number(item.expected_amount))}
+                        </span>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+              {/* Pagination controls */}
+              <div className="flex items-center justify-between mt-4 pt-4 border-t border-default-200">
+                <Button
+                  isDisabled={withdrawCursors.length === 0 && !withdrawCursor}
+                  size="sm"
+                  variant="light"
+                  onPress={handleWithdrawPreviousPage}
+                >
+                  Previous
+                </Button>
+                <span className="text-sm text-default-500">
+                  Page {withdrawCursors.length + 1}
+                </span>
+                <Button
+                  isDisabled={!withdrawRequestsData?.pagination.hasNextPage}
+                  size="sm"
+                  variant="light"
+                  onPress={handleWithdrawNextPage}
+                >
+                  Next
+                </Button>
+              </div>
+            </>
+          )}
+        </CardBody>
+      </Card>
+    </section>
+  );
+}

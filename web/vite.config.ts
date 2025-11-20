@@ -9,20 +9,20 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), "VITE_");
 
   // Check required environment variables at build time
-  const requiredEnvVars = ["VITE_VAULT_PACKAGE_ID", "VITE_VAULT_REGISTRY_ID"];
+  const requiredEnvVars = [
+    "VITE_VAULT_PACKAGE_ID",
+    "VITE_VAULT_REGISTRY_ID",
+    "VITE_VOLO_VAULT_PACKAGE_ID",
+  ];
 
-  const missingVars: string[] = [];
-  requiredEnvVars.forEach((varName) => {
-    if (!env[varName] || env[varName]?.trim() === "") {
-      missingVars.push(varName);
-    }
-  });
+  const missingVars = requiredEnvVars.filter((name) => !env[name]?.trim());
 
   if (missingVars.length > 0) {
-    console.error("\n❌ Missing required environment variables:");
-    missingVars.forEach((varName) => {
-      console.error(`   - ${varName}`);
-    });
+    // eslint-disable-next-line no-console
+    console.error(
+      "❌ Missing required environment variables:",
+      ...missingVars.map((name) => `\n- ${name}`),
+    );
     process.exit(1);
   }
 
