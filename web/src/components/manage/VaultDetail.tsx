@@ -2,6 +2,9 @@ import type { VaultInfo } from "@/lib/types";
 import type { DepositRequest } from "@/hooks/useVaultRequests";
 
 import {
+  addToast,
+  BreadcrumbItem,
+  Breadcrumbs,
   Button,
   Card,
   CardBody,
@@ -20,20 +23,22 @@ import {
 } from "@mysten/dapp-kit";
 import { Transaction } from "@mysten/sui/transactions";
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
 
 import {
   useDepositRequests,
   useWithdrawRequests,
 } from "@/hooks/useVaultRequests";
+import { loggers } from "@/utils/debug";
+
+const { errorLog } = loggers("app:manage:vault-detail");
 
 const VOLO_VAULT_PACKAGE_ID = import.meta.env.VITE_VOLO_VAULT_PACKAGE_ID || "";
-const OPERATION_OBJECT_ID = import.meta.env.VITE_OPERATION_OBJECT_ID || "";
-const OPERATOR_CAP_ID = import.meta.env.VITE_OPERATOR_CAP_ID || "";
-const ORACLE_CONFIG_ID = import.meta.env.VITE_ORACLE_CONFIG_ID || "";
+const VOLO_OPERATION_ID = import.meta.env.VITE_VOLO_OPERATION_ID || "";
+const OPERATOR_CAP_ID = import.meta.env.VITE_VOLO_OPERATOR_CAP_ID || "";
+const VOLO_ORACLE_CONFIG_ID = import.meta.env.VITE_VOLO_ORACLE_CONFIG_ID || "";
 const CLOCK_OBJECT_ID = "0x6"; // Standard Sui Clock object ID
 
-interface AdminVaultDetailProps {
+interface VaultDetailProps {
   vault: VaultInfo;
 }
 
@@ -62,11 +67,10 @@ function formatExpectedShares(shares: string): string {
 const PAGE_SIZE = 20;
 
 /**
- * Admin vault detail component
+ * Manage vault detail component
  * Displays vault information and all deposit/withdraw requests with execute/cancel actions
  */
-export function AdminVaultDetail({ vault }: AdminVaultDetailProps) {
-  const navigate = useNavigate();
+export function VaultDetail({ vault }: VaultDetailProps) {
   const currentAccount = useCurrentAccount();
 
   const { mutate: signAndExecute, isPending } = useSignAndExecuteTransaction();
@@ -156,23 +160,25 @@ export function AdminVaultDetail({ vault }: AdminVaultDetailProps) {
     refetchWithdrawRequests();
   };
 
-  const [executingRequestId, setExecutingRequestId] = useState<number | null>(
-    null,
-  );
-  const [cancellingRequestId, setCancellingRequestId] = useState<number | null>(
-    null,
-  );
+  const [executingRequestId, setExecutingRequestId] = useState<
+    string | number | null
+  >(null);
+  const [cancellingRequestId, setCancellingRequestId] = useState<
+    string | number | null
+  >(null);
 
   const handleExecuteDeposit = async (request: DepositRequest) => {
-    if (!currentAccount || !OPERATION_OBJECT_ID || !OPERATOR_CAP_ID) {
-      alert(
-        "Missing required configuration: OPERATION_OBJECT_ID or OPERATOR_CAP_ID",
-      );
+    if (!currentAccount || !VOLO_OPERATION_ID || !OPERATOR_CAP_ID) {
+      addToast({
+        title: "Missing required configuration",
+        description: "OPERATION_OBJECT_ID or OPERATOR_CAP_ID",
+        color: "danger",
+      });
 
       return;
     }
 
-    setExecutingRequestId(Number(request.request_id));
+    setExecutingRequestId(request.request_id);
 
     try {
       const tx = new Transaction();
@@ -191,12 +197,12 @@ export function AdminVaultDetail({ vault }: AdminVaultDetailProps) {
         target: `${VOLO_VAULT_PACKAGE_ID}::operation::execute_deposit`,
         typeArguments: [coinType],
         arguments: [
-          tx.object(OPERATION_OBJECT_ID),
+          tx.object(VOLO_OPERATION_ID),
           tx.object(OPERATOR_CAP_ID),
           tx.object(vault.vault_id),
           tx.object(vault.reward_manager_id),
           tx.object(CLOCK_OBJECT_ID),
-          tx.object(ORACLE_CONFIG_ID || CLOCK_OBJECT_ID), // Fallback to clock if oracle config not set
+          tx.object(VOLO_ORACLE_CONFIG_ID || CLOCK_OBJECT_ID), // Fallback to clock if oracle config not set
           tx.pure.u64(request.request_id),
           tx.pure.u256(maxSharesReceived.toString()),
         ],
@@ -216,20 +222,18 @@ export function AdminVaultDetail({ vault }: AdminVaultDetailProps) {
           },
           onError: (err) => {
             setExecutingRequestId(null);
-            alert(`Execute deposit failed: ${err.message || "Unknown error"}`);
+            errorLog("Execute deposit failed: %O", err);
           },
         },
       );
     } catch (err) {
       setExecutingRequestId(null);
-      alert(
-        `Execute deposit failed: ${err instanceof Error ? err.message : "Unknown error"}`,
-      );
+      errorLog("Execute deposit failed: %O", err);
     }
   };
 
   const handleCancelDeposit = async (request: DepositRequest) => {
-    if (!currentAccount || !OPERATION_OBJECT_ID || !OPERATOR_CAP_ID) {
+    if (!currentAccount || !VOLO_OPERATION_ID || !OPERATOR_CAP_ID) {
       alert(
         "Missing required configuration: OPERATION_OBJECT_ID or OPERATOR_CAP_ID",
       );
@@ -237,7 +241,7 @@ export function AdminVaultDetail({ vault }: AdminVaultDetailProps) {
       return;
     }
 
-    setCancellingRequestId(Number(request.request_id));
+    setCancellingRequestId(request.request_id);
 
     try {
       const tx = new Transaction();
@@ -250,7 +254,7 @@ export function AdminVaultDetail({ vault }: AdminVaultDetailProps) {
         target: `${VOLO_VAULT_PACKAGE_ID}::operation::cancel_user_deposit`,
         typeArguments: [coinType],
         arguments: [
-          tx.object(OPERATION_OBJECT_ID),
+          tx.object(VOLO_OPERATION_ID),
           tx.object(OPERATOR_CAP_ID),
           tx.object(vault.vault_id),
           tx.pure.u64(request.request_id),
@@ -289,16 +293,12 @@ export function AdminVaultDetail({ vault }: AdminVaultDetailProps) {
   return (
     <section className="space-y-8">
       <header className="space-y-2">
-        <button
-          className="text-default-500 hover:text-foreground mb-4"
-          onClick={() => navigate("/admin")}
-        >
-          ← Back to Admin
-        </button>
-        <h1 className="text-3xl font-semibold">Admin - Vault Details</h1>
-        <p className="text-default-500">
-          Vault ID: {truncateAddress(vault.vault_id)}
-        </p>
+        <Breadcrumbs>
+          <BreadcrumbItem href="/manage">Manage</BreadcrumbItem>
+          <BreadcrumbItem>
+            Vault ({truncateAddress(vault.vault_id)})
+          </BreadcrumbItem>
+        </Breadcrumbs>
         <p className="text-default-500">
           Coin Type: {vault.coin_type.split("::").pop() || vault.coin_type}
         </p>

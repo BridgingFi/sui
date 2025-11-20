@@ -22,7 +22,7 @@ export function Provider({ children }: { children: React.ReactNode }) {
       <ToastProvider />
       <QueryClientProvider client={queryClient}>
         <SuiClientProvider defaultNetwork="testnet" networks={networkConfig}>
-          <WalletProvider>{children}</WalletProvider>
+          <WalletProvider autoConnect>{children}</WalletProvider>
         </SuiClientProvider>
       </QueryClientProvider>
     </HeroUIProvider>

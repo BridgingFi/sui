@@ -1,17 +1,38 @@
 import { useParams, Navigate } from "react-router-dom";
+import { Spinner } from "@heroui/react";
 
 import { AppLayout } from "@/components/layout/AppLayout";
-import { AdminVaultDetail } from "@/components/admin/AdminVaultDetail";
-import { AdminVaultList } from "@/components/admin/AdminVaultList";
+import { VaultDetail } from "@/components/manage/VaultDetail";
+import { VaultList } from "@/components/manage/VaultList";
 import { useVaultRegistry } from "@/hooks/useVaultRegistry";
+import { useManagePermission } from "@/hooks/useManagePermission";
 
 /**
- * Admin route component
- * Route: /admin or /admin/:vaultId
+ * Manage route component
+ * Route: /manage or /manage/:vaultId
+ * Accessible to users with AdminCap or OperatorCap
  */
-export const AdminRoute = () => {
+export const ManageRoute = () => {
   const { vaultId } = useParams<{ vaultId?: string }>();
   const { vaults, isLoading, refetch, isFetching } = useVaultRegistry();
+  const { hasPermission, isLoading: isLoadingPermission } =
+    useManagePermission();
+
+  // Check permissions first
+  if (isLoadingPermission) {
+    return (
+      <AppLayout>
+        <div className="flex items-center justify-center py-8">
+          <Spinner size="lg" />
+        </div>
+      </AppLayout>
+    );
+  }
+
+  // Redirect to home if user doesn't have permission
+  if (!hasPermission) {
+    return <Navigate replace to="/" />;
+  }
 
   if (isLoading) {
     return (
@@ -28,12 +49,12 @@ export const AdminRoute = () => {
     const vault = vaults.find((v) => v.vault_id === vaultId);
 
     if (!vault) {
-      return <Navigate replace to="/admin" />;
+      return <Navigate replace to="/manage" />;
     }
 
     return (
       <AppLayout>
-        <AdminVaultDetail vault={vault} />
+        <VaultDetail vault={vault} />
       </AppLayout>
     );
   }
@@ -44,7 +65,7 @@ export const AdminRoute = () => {
   // the component won't render anyway
   return (
     <AppLayout>
-      <AdminVaultList
+      <VaultList
         isFetchingRegistry={isFetching}
         refetchRegistry={refetch}
         vaults={vaults || []}

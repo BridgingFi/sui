@@ -1,6 +1,8 @@
 import type { VaultInfo } from "@/lib/types";
 
 import {
+  BreadcrumbItem,
+  Breadcrumbs,
   Button,
   Card,
   CardBody,
@@ -21,7 +23,7 @@ import {
   useInvalidateVaultRequestSizes,
 } from "@/hooks/useVaultRequests";
 
-interface AdminVaultListProps {
+interface VaultListProps {
   vaults: VaultInfo[];
   refetchRegistry: () => Promise<unknown>;
   isFetchingRegistry: boolean;
@@ -101,14 +103,14 @@ function VaultPendingRequests({ vaultId }: { vaultId: string }) {
 }
 
 /**
- * Admin vault list component
+ * Manage vault list component
  * Displays all vaults with pending deposit request counts
  */
-export function AdminVaultList({
+export function VaultList({
   vaults,
   refetchRegistry,
   isFetchingRegistry,
-}: AdminVaultListProps) {
+}: VaultListProps) {
   const navigate = useNavigate();
   const invalidateVaultRequestSizes = useInvalidateVaultRequestSizes();
 
@@ -126,7 +128,9 @@ export function AdminVaultList({
     return (
       <section className="space-y-6">
         <header className="space-y-2">
-          <h1 className="text-3xl font-semibold">Admin Console</h1>
+          <Breadcrumbs>
+            <BreadcrumbItem>Manage</BreadcrumbItem>
+          </Breadcrumbs>
           <p className="text-default-500">
             Monitor queued deposits and withdrawals, and execute batched
             operations.
@@ -148,7 +152,9 @@ export function AdminVaultList({
   return (
     <section className="space-y-6">
       <header className="space-y-2">
-        <h1 className="text-3xl font-semibold">Admin Console</h1>
+        <Breadcrumbs>
+          <BreadcrumbItem>Manage</BreadcrumbItem>
+        </Breadcrumbs>
         <p className="text-default-500">
           Monitor queued deposits and withdrawals, and execute batched
           operations.
@@ -186,7 +192,7 @@ export function AdminVaultList({
             <TableBody>
               {vaultsList.map((vault) => {
                 const handleVaultClick = () => {
-                  navigate(`/admin/${vault.vault_id}`);
+                  navigate(`/manage/${vault.vault_id}`);
                 };
 
                 return (
