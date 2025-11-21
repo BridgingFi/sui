@@ -25,7 +25,7 @@ export const VaultDetailRoute = () => {
   const vault = vaults.find((v) => v.vault_id === vaultId);
 
   if (!vault) {
-    return <Navigate to="/" replace />;
+    return <Navigate replace to="/" />;
   }
 
   return (
@@ -34,4 +34,3 @@ export const VaultDetailRoute = () => {
     </AppLayout>
   );
 };
-

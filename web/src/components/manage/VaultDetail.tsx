@@ -22,21 +22,22 @@ import {
   useSignAndExecuteTransaction,
 } from "@mysten/dapp-kit";
 import { Transaction } from "@mysten/sui/transactions";
+import { SUI_CLOCK_OBJECT_ID } from "@mysten/sui/utils";
 import { useState } from "react";
 
 import {
   useDepositRequests,
   useWithdrawRequests,
 } from "@/hooks/useVaultRequests";
+import { useOperatorCaps } from "@/hooks/useOperatorCaps";
 import { loggers } from "@/utils/debug";
+import { parseTransactionError } from "@/utils/errorCodes";
 
 const { errorLog } = loggers("app:manage:vault-detail");
 
 const VOLO_VAULT_PACKAGE_ID = import.meta.env.VITE_VOLO_VAULT_PACKAGE_ID || "";
 const VOLO_OPERATION_ID = import.meta.env.VITE_VOLO_OPERATION_ID || "";
-const OPERATOR_CAP_ID = import.meta.env.VITE_VOLO_OPERATOR_CAP_ID || "";
 const VOLO_ORACLE_CONFIG_ID = import.meta.env.VITE_VOLO_ORACLE_CONFIG_ID || "";
-const CLOCK_OBJECT_ID = "0x6"; // Standard Sui Clock object ID
 
 interface VaultDetailProps {
   vault: VaultInfo;
@@ -72,6 +73,7 @@ const PAGE_SIZE = 20;
  */
 export function VaultDetail({ vault }: VaultDetailProps) {
   const currentAccount = useCurrentAccount();
+  const { operatorCaps } = useOperatorCaps();
 
   const { mutate: signAndExecute, isPending } = useSignAndExecuteTransaction();
 
@@ -168,10 +170,33 @@ export function VaultDetail({ vault }: VaultDetailProps) {
   >(null);
 
   const handleExecuteDeposit = async (request: DepositRequest) => {
-    if (!currentAccount || !VOLO_OPERATION_ID || !OPERATOR_CAP_ID) {
+    if (!currentAccount) {
       addToast({
-        title: "Missing required configuration",
-        description: "OPERATION_OBJECT_ID or OPERATOR_CAP_ID",
+        title: "Wallet not connected",
+        color: "danger",
+      });
+
+      return;
+    }
+
+    // Get first available OperatorCap
+    const operatorCap = operatorCaps?.[0];
+
+    if (!operatorCap) {
+      addToast({
+        title: "No OperatorCap found",
+        description: "You need an OperatorCap to execute deposits",
+        color: "danger",
+      });
+
+      return;
+    }
+
+    // Validate request data
+    if (!request.request_id || !request.expected_shares) {
+      addToast({
+        title: "Invalid request data",
+        description: "Request ID or expected shares is missing",
         color: "danger",
       });
 
@@ -186,6 +211,10 @@ export function VaultDetail({ vault }: VaultDetailProps) {
       // Extract coin type from vault coin_type
       const coinType = vault.coin_type;
 
+      if (!coinType) {
+        throw new Error("Coin type is missing from vault");
+      }
+
       // Call execute_deposit
       // Note: max_shares_received should be calculated based on current vault state
       // For now, we'll use expected_shares * 1.1 (10% slippage tolerance)
@@ -198,11 +227,11 @@ export function VaultDetail({ vault }: VaultDetailProps) {
         typeArguments: [coinType],
         arguments: [
           tx.object(VOLO_OPERATION_ID),
-          tx.object(OPERATOR_CAP_ID),
+          tx.object(operatorCap.objectId),
           tx.object(vault.vault_id),
           tx.object(vault.reward_manager_id),
-          tx.object(CLOCK_OBJECT_ID),
-          tx.object(VOLO_ORACLE_CONFIG_ID || CLOCK_OBJECT_ID), // Fallback to clock if oracle config not set
+          tx.object(SUI_CLOCK_OBJECT_ID),
+          tx.object(VOLO_ORACLE_CONFIG_ID),
           tx.pure.u64(request.request_id),
           tx.pure.u256(maxSharesReceived.toString()),
         ],
@@ -210,11 +239,16 @@ export function VaultDetail({ vault }: VaultDetailProps) {
 
       signAndExecute(
         {
-          transaction: tx as any,
+          transaction: tx,
         },
         {
           onSuccess: async () => {
             setExecutingRequestId(null);
+            addToast({
+              title: "Success",
+              description: "Deposit executed successfully",
+              color: "success",
+            });
             // Wait a bit for events to be indexed
             setTimeout(() => {
               refetchRequests();
@@ -223,20 +257,60 @@ export function VaultDetail({ vault }: VaultDetailProps) {
           onError: (err) => {
             setExecutingRequestId(null);
             errorLog("Execute deposit failed: %O", err);
+
+            addToast({
+              title: "Transaction failed",
+              description: parseTransactionError(err),
+              color: "danger",
+            });
           },
         },
       );
     } catch (err) {
       setExecutingRequestId(null);
+
+      const errorMessage =
+        err instanceof Error ? err.message : parseTransactionError(err);
+
       errorLog("Execute deposit failed: %O", err);
+      addToast({
+        title: "Transaction failed",
+        description: errorMessage,
+        color: "danger",
+      });
     }
   };
 
   const handleCancelDeposit = async (request: DepositRequest) => {
-    if (!currentAccount || !VOLO_OPERATION_ID || !OPERATOR_CAP_ID) {
-      alert(
-        "Missing required configuration: OPERATION_OBJECT_ID or OPERATOR_CAP_ID",
-      );
+    if (!currentAccount) {
+      addToast({
+        title: "Wallet not connected",
+        color: "danger",
+      });
+
+      return;
+    }
+
+    // Get first available OperatorCap
+    const operatorCap = operatorCaps?.[0];
+
+    if (!operatorCap) {
+      addToast({
+        title: "No OperatorCap found",
+        description: "You need an OperatorCap to cancel deposits",
+        color: "danger",
+      });
+
+      return;
+    }
+
+    // Validate request data
+    if (!request.request_id || !request.receipt_id || !request.recipient) {
+      addToast({
+        title: "Invalid request data",
+        description: "Request ID, receipt ID, or recipient is missing",
+        color: "danger",
+      });
 
       return;
     }
@@ -249,28 +323,37 @@ export function VaultDetail({ vault }: VaultDetailProps) {
       // Extract coin type from vault coin_type
       const coinType = vault.coin_type;
 
+      if (!coinType) {
+        throw new Error("Coin type is missing from vault");
+      }
+
       // Call cancel_user_deposit
       tx.moveCall({
         target: `${VOLO_VAULT_PACKAGE_ID}::operation::cancel_user_deposit`,
         typeArguments: [coinType],
         arguments: [
           tx.object(VOLO_OPERATION_ID),
-          tx.object(OPERATOR_CAP_ID),
+          tx.object(operatorCap.objectId),
           tx.object(vault.vault_id),
           tx.pure.u64(request.request_id),
           tx.pure.address(request.receipt_id),
           tx.pure.address(request.recipient),
-          tx.object(CLOCK_OBJECT_ID),
+          tx.object(SUI_CLOCK_OBJECT_ID),
         ],
       });
 
       signAndExecute(
         {
-          transaction: tx as any,
+          transaction: tx,
         },
         {
           onSuccess: async () => {
             setCancellingRequestId(null);
+            addToast({
+              title: "Success",
+              description: "Deposit canceled successfully",
+              color: "success",
+            });
             // Wait a bit for events to be indexed
             setTimeout(() => {
               refetchRequests();
@@ -278,15 +361,30 @@ export function VaultDetail({ vault }: VaultDetailProps) {
           },
           onError: (err) => {
             setCancellingRequestId(null);
-            alert(`Cancel deposit failed: ${err.message || "Unknown error"}`);
+
+            const errorMessage = parseTransactionError(err);
+
+            errorLog("Cancel deposit failed: %O", err);
+            addToast({
+              title: "Transaction failed",
+              description: errorMessage,
+              color: "danger",
+            });
           },
         },
       );
     } catch (err) {
       setCancellingRequestId(null);
-      alert(
-        `Cancel deposit failed: ${err instanceof Error ? err.message : "Unknown error"}`,
-      );
+
+      const errorMessage =
+        err instanceof Error ? err.message : parseTransactionError(err);
+
+      errorLog("Cancel deposit failed: %O", err);
+      addToast({
+        title: "Transaction failed",
+        description: errorMessage,
+        color: "danger",
+      });
     }
   };
 

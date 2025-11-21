@@ -18,6 +18,7 @@ import {
   useSuiClient,
 } from "@mysten/dapp-kit";
 import { Transaction } from "@mysten/sui/transactions";
+import { SUI_CLOCK_OBJECT_ID, MOVE_STDLIB_ADDRESS } from "@mysten/sui/utils";
 import { useState } from "react";
 
 import { useCoinBalance } from "@/hooks/useCoinBalance";
@@ -26,9 +27,6 @@ import { useVaultInfo } from "@/hooks/useVaultInfo";
 import { WalletConnectButtonWithModal } from "@/components/wallet/WalletConnectButtonWithModal";
 
 const VOLO_VAULT_PACKAGE_ID = import.meta.env.VITE_VOLO_VAULT_PACKAGE_ID || "";
-const CLOCK_OBJECT_ID = "0x6"; // Standard Sui Clock object ID
-const OPTION_PACKAGE_ID =
-  "0x0000000000000000000000000000000000000000000000000000000000000001"; // Sui framework
 
 // Helper function to get coin decimals (default to 6 for USDC, 9 for SUI)
 function getCoinDecimals(coinType: string): number {
@@ -186,14 +184,14 @@ export function DepositForm({
       if (hasReceipt && propReceiptId) {
         // Call option::some(receipt) to wrap receipt in Option
         optionReceipt = tx.moveCall({
-          target: `${OPTION_PACKAGE_ID}::option::some`,
+          target: `${MOVE_STDLIB_ADDRESS}::option::some`,
           typeArguments: [`${voloPackageId}::receipt::Receipt`],
           arguments: [tx.object(propReceiptId)],
         });
       } else {
         // Call option::none() to create Option::none
         optionReceipt = tx.moveCall({
-          target: `${OPTION_PACKAGE_ID}::option::none`,
+          target: `${MOVE_STDLIB_ADDRESS}::option::none`,
           typeArguments: [`${voloPackageId}::receipt::Receipt`],
           arguments: [],
         });
@@ -211,7 +209,7 @@ export function DepositForm({
           tx.pure.u64(amountValue),
           tx.pure.u256(expectedShares),
           optionReceipt, // Use the Option<Receipt> from previous call
-          tx.object(CLOCK_OBJECT_ID),
+          tx.object(SUI_CLOCK_OBJECT_ID),
         ],
       });
 

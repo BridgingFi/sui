@@ -14,6 +14,7 @@ export default defineConfig(({ mode }) => {
     "VITE_VAULT_REGISTRY_ID",
     "VITE_VOLO_VAULT_PACKAGE_ID",
     "VITE_VOLO_OPERATION_ID",
+    "VITE_VOLO_ORACLE_CONFIG_ID",
   ];
 
   const missingVars = requiredEnvVars.filter((name) => !env[name]?.trim());
