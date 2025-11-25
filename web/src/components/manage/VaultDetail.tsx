@@ -20,6 +20,7 @@ import {
 import {
   useCurrentAccount,
   useSignAndExecuteTransaction,
+  useSuiClient,
 } from "@mysten/dapp-kit";
 import { Transaction } from "@mysten/sui/transactions";
 import { SUI_CLOCK_OBJECT_ID } from "@mysten/sui/utils";
@@ -31,6 +32,7 @@ import {
 } from "@/hooks/useVaultRequests";
 import { useOperatorCaps } from "@/hooks/useOperatorCaps";
 import { loggers } from "@/utils/debug";
+import { showTransactionErrorToast } from "@/utils/transaction";
 import { parseTransactionError } from "@/utils/errorCodes";
 
 const { errorLog } = loggers("app:manage:vault-detail");
@@ -74,6 +76,7 @@ const PAGE_SIZE = 20;
 export function VaultDetail({ vault }: VaultDetailProps) {
   const currentAccount = useCurrentAccount();
   const { operatorCaps } = useOperatorCaps();
+  const client = useSuiClient();
 
   const { mutate: signAndExecute, isPending } = useSignAndExecuteTransaction();
 
@@ -256,13 +259,13 @@ export function VaultDetail({ vault }: VaultDetailProps) {
           },
           onError: (err) => {
             setExecutingRequestId(null);
-            errorLog("Execute deposit failed: %O", err);
-
-            addToast({
-              title: "Transaction failed",
-              description: parseTransactionError(err),
-              color: "danger",
-            });
+            showTransactionErrorToast(
+              err,
+              tx,
+              client,
+              errorLog,
+              "Execute deposit failed",
+            );
           },
         },
       );
@@ -361,15 +364,13 @@ export function VaultDetail({ vault }: VaultDetailProps) {
           },
           onError: (err) => {
             setCancellingRequestId(null);
-
-            const errorMessage = parseTransactionError(err);
-
-            errorLog("Cancel deposit failed: %O", err);
-            addToast({
-              title: "Transaction failed",
-              description: errorMessage,
-              color: "danger",
-            });
+            showTransactionErrorToast(
+              err,
+              tx,
+              client,
+              errorLog,
+              "Cancel deposit failed",
+            );
           },
         },
       );

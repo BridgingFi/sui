@@ -1,5 +1,4 @@
 import {
-  Button,
   Dropdown,
   DropdownItem,
   DropdownMenu,
@@ -13,9 +12,10 @@ import {
   NavbarMenuToggle,
   Image,
   Link,
+  Button,
 } from "@heroui/react";
-import { Link as RouterLink, useLocation, useNavigate } from "react-router-dom";
-import { useState, useRef } from "react";
+import { useLocation } from "react-router-dom";
+import { useState, useRef, useMemo } from "react";
 import { NavArrowDown } from "iconoir-react";
 
 import { WalletConnectButtonWithModal } from "@/components/wallet/WalletConnectButtonWithModal";
@@ -26,9 +26,27 @@ export const Navbar = () => {
   const [isManageDropdownOpen, setIsManageDropdownOpen] = useState(false);
   const closeMenuAbortControllerRef = useRef<AbortController | null>(null);
   const location = useLocation();
-  const navigate = useNavigate();
   const { hasPermission, isLoading: isLoadingPermission } =
     useManagePermission();
+
+  // Determine selected keys for dropdown menu
+  const selectedKeys = useMemo(() => {
+    const path = location.pathname;
+
+    if (path === "/manage") {
+      return ["vaults"];
+    }
+
+    if (path === "/manage/operator-caps") {
+      return ["operator-caps"];
+    }
+
+    if (path === "/manage/oracle-config") {
+      return ["oracle-config"];
+    }
+
+    return [];
+  }, [location.pathname]);
 
   // Only show navigation links if user has AdminCap or OperatorCap
   const isManagePage =
@@ -91,9 +109,8 @@ export const Navbar = () => {
             <NavbarItem isActive={location.pathname === "/"}>
               <Link
                 aria-current={location.pathname === "/" ? "page" : undefined}
-                as={RouterLink}
                 color={location.pathname === "/" ? "primary" : "foreground"}
-                to="/"
+                href="/"
               >
                 Vault
               </Link>
@@ -109,40 +126,39 @@ export const Navbar = () => {
                 >
                   <Button
                     disableRipple
-                    as={RouterLink}
+                    as={Link}
                     className="p-0 bg-transparent data-[hover=true]:bg-transparent"
-                    endContent={<NavArrowDown className="w-4 h-4" />}
+                    color={isManagePage ? "primary" : "default"}
+                    endContent={<NavArrowDown />}
+                    href="/manage"
                     radius="sm"
-                    to="/manage"
                     variant="light"
                   >
                     Manage
                   </Button>
                 </DropdownTrigger>
                 <DropdownMenu
+                  hideSelectedIcon
                   aria-label="Manage menu"
+                  selectedKeys={selectedKeys}
+                  selectionMode="single"
                   onMouseEnter={handleMouseEnter}
                   onMouseLeave={handleMouseLeave}
                 >
-                  <DropdownItem
-                    key="vaults"
-                    className={
-                      location.pathname === "/manage" ? "bg-default-100" : ""
-                    }
-                    onPress={() => navigate("/manage")}
-                  >
+                  <DropdownItem key="vaults" href="/manage">
                     Vaults
                   </DropdownItem>
                   <DropdownItem
                     key="operator-caps"
-                    className={
-                      location.pathname === "/manage/operator-caps"
-                        ? "bg-default-100"
-                        : ""
-                    }
-                    onPress={() => navigate("/manage/operator-caps")}
+                    href="/manage/operator-caps"
                   >
                     OperatorCap
+                  </DropdownItem>
+                  <DropdownItem
+                    key="oracle-config"
+                    href="/manage/oracle-config"
+                  >
+                    Oracle Config
                   </DropdownItem>
                 </DropdownMenu>
               </Dropdown>
@@ -162,10 +178,9 @@ export const Navbar = () => {
           <>
             <NavbarMenuItem>
               <Link
-                as={RouterLink}
                 className="w-full"
                 color={location.pathname === "/" ? "primary" : "foreground"}
-                to="/"
+                href="/"
                 onPress={() => setIsMenuOpen(false)}
               >
                 Vault
@@ -173,12 +188,11 @@ export const Navbar = () => {
             </NavbarMenuItem>
             <NavbarMenuItem>
               <Link
-                as={RouterLink}
                 className="w-full"
                 color={
                   location.pathname === "/manage" ? "primary" : "foreground"
                 }
-                to="/manage"
+                href="/manage"
                 onPress={() => setIsMenuOpen(false)}
               >
                 Manage
@@ -186,17 +200,30 @@ export const Navbar = () => {
             </NavbarMenuItem>
             <NavbarMenuItem>
               <Link
-                as={RouterLink}
                 className="w-full pl-4"
                 color={
                   location.pathname === "/manage/operator-caps"
                     ? "primary"
                     : "foreground"
                 }
-                to="/manage/operator-caps"
+                href="/manage/operator-caps"
                 onPress={() => setIsMenuOpen(false)}
               >
                 OperatorCap
+              </Link>
+            </NavbarMenuItem>
+            <NavbarMenuItem>
+              <Link
+                className="w-full pl-4"
+                color={
+                  location.pathname === "/manage/oracle-config"
+                    ? "primary"
+                    : "foreground"
+                }
+                href="/manage/oracle-config"
+                onPress={() => setIsMenuOpen(false)}
+              >
+                Oracle Config
               </Link>
             </NavbarMenuItem>
           </>

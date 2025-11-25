@@ -20,3 +20,33 @@ export interface VaultRegistryData {
     };
   };
 }
+
+export interface OracleConfig {
+  id: string;
+  version: number;
+  update_interval: number;
+  dex_slippage: string;
+  aggregators: Map<string, PriceInfo>;
+}
+
+export interface PriceInfo {
+  aggregator: string;
+  decimals: number;
+  price: string;
+  last_updated: number;
+}
+
+export interface SwitchboardAggregator {
+  id: string;
+  name: string;
+  address: string;
+  authority: string;
+  created_at_ms: string;
+  current_result?: {
+    result: {
+      value: string;
+      neg: boolean;
+    };
+    timestamp_ms: string;
+  };
+}

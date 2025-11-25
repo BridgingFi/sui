@@ -15,6 +15,8 @@ export default defineConfig(({ mode }) => {
     "VITE_VOLO_VAULT_PACKAGE_ID",
     "VITE_VOLO_OPERATION_ID",
     "VITE_VOLO_ORACLE_CONFIG_ID",
+    "VITE_SWITCHBOARD_AGGREGATOR_TYPE_ID",
+    "VITE_SUI_GRAPHQL_URL",
   ];
 
   const missingVars = requiredEnvVars.filter((name) => !env[name]?.trim());

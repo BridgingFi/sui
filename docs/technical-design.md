@@ -1,5 +1,7 @@
 # BridgingFi Vault Technical Design
 
+**Last Updated**: 2025-11-25
+
 ## Overview
 
 - Provide a minimum viable Sui vault experience reusing the audited `volo_vault` package without modification.
@@ -8,17 +10,39 @@
 
 ## Move Package Layout
 
-- Package: `move/vault`
-- Module: `bridgingfi_vault::vault_proxy`
-  - `deposit_new_receipt<CoinType>`: creates a fresh Volo receipt by delegating to `volo_vault::user_entry::deposit_with_auto_transfer` with `None` receipt input.
-  - `deposit_with_receipt<CoinType>`: tops up an existing receipt by passing it through the same Volo helper.
-  - `request_withdraw_auto_transfer<CoinType>`: triggers `volo_vault::user_entry::withdraw_with_auto_transfer` so redeemed coins are delivered directly once the operator executes the queue.
-- Rely on `std::option` to toggle between `None` and `Some(receipt)` because Move 2024 forbids `Option` parameters in `entry` functions.
-- All functions accept generic `CoinType` to avoid hard-coding specific coin types.
+**Package**: `move/vault`
+
+### Module: `bridgingfi_vault::vault_registry`
+
+**Purpose**: Registry for tracking all vault instances in the system.
+
+**Functions**:
+
+- `create_registry` - Create the vault registry (one-time setup, creates shared object)
+- `register_vault_by_id<CoinType>` - Register a vault to the registry (admin only)
+- `get_all_vaults` - Get all registered vaults (view function)
+- `get_vault_info` - Get vault info by vault ID (view function)
+- `vault_count` - Get the number of registered vaults (view function)
+- `get_admin` - Get the admin address (view function)
+
+**Design**: Shared object (`VaultRegistry`) stores a `VecMap<address, VaultInfo>` mapping vault IDs to registration information. Admin address is stored in the registry and checked for registration operations.
+
+### Module: `bridgingfi_vault::vault_proxy` ⚠️ **Not currently used, may not be needed**
+
+**Functions** (if used):
+
+- `deposit_new_receipt<CoinType>` - Create new receipt
+- `deposit_with_receipt<CoinType>` - Top up existing receipt
+- `request_withdraw_auto_transfer<CoinType>` - Request withdrawal
+
+**Design**: Uses `std::option` to toggle between `None` and `Some(receipt)` because Move 2024 forbids `Option` parameters in `entry` functions.
+
+**Note**: Currently, frontend directly calls `volo_vault::user_entry` functions. The proxy layer may not be necessary.
 
 ## External Dependencies
 
 - The demo targets Sui testnet USDC at `0xea10912247c015ead590e481ae8545ff1518492dee41d6d03abdad828c1d2bde::usdc::USDC`.
+  - Can be swapped at https://testnet.flowx.finance/swap
 
 ### volo_vault Package Dependency
 
@@ -32,29 +56,14 @@ See `move/local_dependencies/README.md` for deployment instructions.
 
 ## Transaction Flows
 
-- **Deposit (new receipt)**: user supplies a `Coin<CoinType>` and expected share amount; wrapper forwards to Volo helper with `None` receipt to mint shares and emit Volo events.
-- **Deposit (existing receipt)**: user passes an owned receipt object; wrapper sends `Some(receipt)` so Volo increments the same position.
-- **Withdraw**: user passes a mutable receipt reference plus share amount; wrapper calls the Volo withdraw helper, preserving queue semantics and letting the vault operator fulfil the request.
-- The wrapper does not manage pause flags, admin queues, or profit ledgers; these features are deferred to future iterations.
+- **Deposit (new receipt)**: Forward to Volo helper with `None` receipt
+- **Deposit (existing receipt)**: Forward with `Some(receipt)`
+- **Withdraw**: Call Volo withdraw helper, preserve queue semantics
 
-## Frontend Skeleton
-
-- Tech stack: React + HeroUI, `@mysten/dapp-kit` for wallet connections, and `vite` for lightweight bundling.
-- Routes: `/` (user portal) and `/admin` (future operator tools placeholder).
-- Core components to build next:
-  - Wallet connect button plus account state context.
-  - Deposit form that constructs `deposit_new_receipt` or `deposit_with_receipt` transactions depending on whether the user holds a receipt.
-  - Withdraw form that wraps `request_withdraw_auto_transfer`.
-- Avoid external caching layers; read on-chain state directly through Sui RPC.
-
-## Testing Strategy
-
-- Run `sui move test -p move/vault` once dependencies are fetched; tests will live next to the Move sources when authored.
-- For faster test execution, use `sui move test --skip-fetch-latest-git-deps` to skip git dependency updates (approximately 4x faster when dependencies haven't changed).
-- Future additions: integration harness exercising deposit/withdraw using `sui-test-validator`.
+**Note**: Wrapper does not manage pause flags, admin queues, or profit ledgers (deferred to future iterations).
 
 ## Deployment Notes
 
 - Publish the Move package to Sui testnet and record the resulting module IDs.
-- Store published addresses in frontend environment variables (e.g., `VITE_VAULT_PACKAGE_ID`).
-- Ensure CLI and frontend use the same `CoinType` type argument; for the demo this means passing the published USDC type tag.
+- Store published addresses in frontend environment variables (e.g., `VITE_VAULT_PACKAGE_ID`) and script config (e.g., `VAULT_PACKAGE_ID`).
+- Helper scripts are under `move/vault/scripts`.

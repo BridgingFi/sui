@@ -65,4 +65,4 @@ sui client publish --gas-budget 2000000000 --skip-fetch-latest-git-deps
 ### Notes
 
 - Switchboard is managed as a local dependency (via git subtree), allowing modification of test function visibility
-- After deployment, update `published-at` and `addresses` in `Move.testnet.toml`
+- After deployment, update `published-at` and `addresses` in `Move.toml` (use network-specific branch to distinguish between mainnet and testnet)

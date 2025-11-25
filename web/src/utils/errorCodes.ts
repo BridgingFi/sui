@@ -11,7 +11,7 @@ export const VOLO_VAULT_ERROR_CODES: Record<number, string> = {
   5004: "Zero share",
   5005: "Vault not enabled",
   5006: "Vault receipt not match",
-  5007: "USD value not updated (oracle price outdated or aggregator not configured)",
+  5007: "USD value not updated within the update interval",
   5008: "Exceed loss limit",
   5009: "Unexpected slippage",
   5010: "Request not found",
@@ -46,10 +46,10 @@ export const OPERATION_ERROR_CODES: Record<number, string> = {
 // Error codes from oracle.move (2xxx range)
 export const ORACLE_ERROR_CODES: Record<number, string> = {
   2001: "Aggregator not found for coin type",
-  2002: "Price not updated",
+  2002: "Aggregator price not updated within the update interval",
   2003: "Aggregator already exists",
   2004: "Aggregator asset mismatch",
-  2005: "Invalid version",
+  2005: "Invalid version of oracle config",
 };
 
 // Error codes from reward_manager.move (3xxx range)

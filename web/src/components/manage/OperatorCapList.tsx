@@ -22,6 +22,7 @@ import {
 import {
   useCurrentAccount,
   useSignAndExecuteTransaction,
+  useSuiClient,
 } from "@mysten/dapp-kit";
 import { QueryEventsParams } from "@mysten/sui/client";
 import { Transaction } from "@mysten/sui/transactions";
@@ -31,6 +32,7 @@ import { useState } from "react";
 import { useAllOperatorCaps } from "@/hooks/useAllOperatorCaps";
 import { useAdminCap } from "@/hooks/useAdminCap";
 import { loggers } from "@/utils/debug";
+import { showTransactionErrorToast } from "@/utils/transaction";
 
 const { errorLog } = loggers("app:manage:operator-cap-list");
 
@@ -46,6 +48,7 @@ function truncateAddress(address: string): string {
  * Displays OperatorCap objects created via events with pagination, with owner and freezed status
  */
 export function OperatorCapList() {
+  const client = useSuiClient();
   // Pagination state
   const [cursor, setCursor] = useState<QueryEventsParams["cursor"]>(null);
   const [cursors, setCursors] = useState<Array<QueryEventsParams["cursor"]>>(
@@ -158,12 +161,13 @@ export function OperatorCapList() {
           },
           onError: (err) => {
             setIsCreating(false);
-            errorLog("Create OperatorCap failed: %O", err);
-            addToast({
-              title: "Failed to create OperatorCap",
-              description: err.message || "Unknown error",
-              color: "danger",
-            });
+            showTransactionErrorToast(
+              err,
+              tx,
+              client,
+              errorLog,
+              "Failed to create OperatorCap",
+            );
           },
         },
       );

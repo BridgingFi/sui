@@ -25,8 +25,11 @@ import { useCoinBalance } from "@/hooks/useCoinBalance";
 import { useReceiptDetails } from "@/hooks/useReceiptDetails";
 import { useVaultInfo } from "@/hooks/useVaultInfo";
 import { WalletConnectButtonWithModal } from "@/components/wallet/WalletConnectButtonWithModal";
+import { loggers } from "@/utils/debug";
+import { showTransactionErrorToast } from "@/utils/transaction";
 
 const VOLO_VAULT_PACKAGE_ID = import.meta.env.VITE_VOLO_VAULT_PACKAGE_ID || "";
+const { errorLog } = loggers("app:vault:deposit-form");
 
 // Helper function to get coin decimals (default to 6 for USDC, 9 for SUI)
 function getCoinDecimals(coinType: string): number {
@@ -229,7 +232,13 @@ export function DepositForm({
             // TODO: Show success toast
           },
           onError: (err) => {
-            setError(err.message || "Deposit failed");
+            showTransactionErrorToast(
+              err,
+              tx,
+              client,
+              errorLog,
+              "Deposit failed",
+            );
           },
         },
       );
