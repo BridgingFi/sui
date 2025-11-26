@@ -194,13 +194,37 @@ export function OracleConfigDetail() {
     try {
       const tx = new Transaction();
 
+      // Normalize assetType: remove 0x prefix if present
+      // type_name::get<CoinType>().into_string() produces format without 0x prefix
+      // e.g., "ea10912247c015ead590e481ae8545ff1518492dee41d6d03abdad828c1d2bde::usdc::USDC"
+      // not "0xea10912247c015ead590e481ae8545ff1518492dee41d6d03abdad828c1d2bde::usdc::USDC"
+      let normalizedAssetType = assetType.trim();
+
+      // Remove 0x prefix if the address part starts with 0x
+      // Pattern: 0x<address>::<module>::<name> -> <address>::<module>::<name>
+      if (normalizedAssetType.startsWith("0x")) {
+        // Find the first :: to determine where the address ends
+        const firstColonIndex = normalizedAssetType.indexOf("::");
+
+        if (firstColonIndex > 2) {
+          // Remove 0x prefix from address part only
+          // 0x<address>::module::name -> <address>::module::name
+          normalizedAssetType =
+            normalizedAssetType.substring(2, firstColonIndex) +
+            normalizedAssetType.substring(firstColonIndex);
+        } else {
+          // If no :: found, just remove 0x prefix
+          normalizedAssetType = normalizedAssetType.substring(2);
+        }
+      }
+
       tx.moveCall({
         target: `${VOLO_VAULT_PACKAGE_ID}::vault_manage::add_switchboard_aggregator`,
         arguments: [
           tx.object(adminCap.objectId),
           tx.object(VOLO_ORACLE_CONFIG_ID),
           tx.object(SUI_CLOCK_OBJECT_ID),
-          tx.pure.string(assetType),
+          tx.pure.string(normalizedAssetType),
           tx.pure.u8(decimals),
           tx.object(aggregatorId),
         ],
