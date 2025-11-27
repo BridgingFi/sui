@@ -35,6 +35,9 @@ export function VaultDetail({ vault }: VaultDetailProps) {
   const {
     depositFeeRate,
     totalShares,
+    withdrawFeeRate,
+    lockingTimeForWithdraw,
+    lockingTimeForCancelRequest,
     isLoading: isLoadingVaultInfo,
   } = useVaultInfo(vault.vault_id);
 
@@ -74,6 +77,30 @@ export function VaultDetail({ vault }: VaultDetailProps) {
     const priceValue = Number(ratio) / Number(decimals);
 
     return priceValue.toFixed(6);
+  };
+
+  // Format locking time from milliseconds to human readable format
+  const formatLockingTime = (ms: number | null): string => {
+    if (ms === null || ms === 0) {
+      return "N/A";
+    }
+
+    const seconds = Math.floor(ms / 1000);
+    const minutes = Math.floor(seconds / 60);
+    const hours = Math.floor(minutes / 60);
+    const days = Math.floor(hours / 24);
+
+    if (days > 0) {
+      return `${days} day${days > 1 ? "s" : ""}`;
+    }
+    if (hours > 0) {
+      return `${hours} hour${hours > 1 ? "s" : ""}`;
+    }
+    if (minutes > 0) {
+      return `${minutes} minute${minutes > 1 ? "s" : ""}`;
+    }
+
+    return `${seconds} second${seconds > 1 ? "s" : ""}`;
   };
 
   return (
@@ -137,9 +164,35 @@ export function VaultDetail({ vault }: VaultDetailProps) {
                   </span>
                 </div>
                 <div className="flex items-center justify-between">
+                  <span className="text-sm text-default-500">
+                    Withdraw Fee Rate
+                  </span>
+                  <span className="text-sm font-medium">
+                    {withdrawFeeRate !== null
+                      ? `${withdrawFeeRate / 100}%`
+                      : "N/A"}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
                   <span className="text-sm text-default-500">Total Shares</span>
                   <span className="text-sm font-medium font-mono">
                     {totalShares !== null ? totalShares.toString() : "N/A"}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-default-500">
+                    Locking Time for Withdraw
+                  </span>
+                  <span className="text-sm font-medium">
+                    {formatLockingTime(lockingTimeForWithdraw)}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-default-500">
+                    Locking Time for Cancel Request
+                  </span>
+                  <span className="text-sm font-medium">
+                    {formatLockingTime(lockingTimeForCancelRequest)}
                   </span>
                 </div>
               </div>

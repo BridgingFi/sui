@@ -25,17 +25,20 @@ import {
 import { Transaction } from "@mysten/sui/transactions";
 import { SUI_CLOCK_OBJECT_ID } from "@mysten/sui/utils";
 import { useState } from "react";
+import dayjs from "dayjs";
 
 import {
   useDepositRequests,
   useWithdrawRequests,
 } from "@/hooks/useVaultRequests";
 import { useOperatorCaps } from "@/hooks/useOperatorCaps";
+import { useVaultInfo } from "@/hooks/useVaultInfo";
+import { useVaultAssets } from "@/hooks/useVaultAssets";
 import { loggers } from "@/utils/debug";
 import { showTransactionErrorToast } from "@/utils/transaction";
 import { parseTransactionError } from "@/utils/errorCodes";
 
-const { errorLog } = loggers("app:manage:vault-detail");
+const { errorLog, debugLog } = loggers("app:manage:vault-detail");
 
 const VOLO_VAULT_PACKAGE_ID = import.meta.env.VITE_VOLO_VAULT_PACKAGE_ID || "";
 const VOLO_OPERATION_ID = import.meta.env.VITE_VOLO_OPERATION_ID || "";
@@ -79,6 +82,20 @@ export function VaultDetail({ vault }: VaultDetailProps) {
   const client = useSuiClient();
 
   const { mutate: signAndExecute, isPending } = useSignAndExecuteTransaction();
+
+  // Query vault info
+  const {
+    freePrincipal,
+    claimablePrincipal,
+    assetTypes,
+    isLoading: isLoadingVaultInfo,
+  } = useVaultInfo(vault.vault_id);
+
+  // Query vault assets
+  const { assets, isLoading: isLoadingAssets } = useVaultAssets(
+    vault.vault_id,
+    assetTypes || [],
+  );
 
   // Pagination state for deposit requests
   const [depositCursor, setDepositCursor] = useState<string | undefined>(
@@ -209,6 +226,20 @@ export function VaultDetail({ vault }: VaultDetailProps) {
     setExecutingRequestId(request.request_id);
 
     try {
+      // Validate deposit request amount (defensive check to avoid wasting gas)
+      if (BigInt(String(request.amount || 0)) === 0n) {
+        throw new Error(
+          "Deposit request amount is zero. Should not execute deposit with zero amount.",
+        );
+      }
+
+      debugLog(
+        "Executing deposit - request_id:%s amount:%s expected_shares:%s",
+        request.request_id,
+        request.amount,
+        request.expected_shares,
+      );
+
       const tx = new Transaction();
 
       // Extract coin type from vault coin_type
@@ -217,6 +248,21 @@ export function VaultDetail({ vault }: VaultDetailProps) {
       if (!coinType) {
         throw new Error("Coin type is missing from vault");
       }
+
+      // Update principal value before execute_deposit because execute_deposit
+      // calls get_total_usd_value_before (line 820) which requires all assets
+      // to be updated within MAX_UPDATE_INTERVAL which is 0. execute_deposit
+      // will update it again after joining the coin (line 839) to get the
+      // accurate "after" value.
+      tx.moveCall({
+        target: `${VOLO_VAULT_PACKAGE_ID}::vault::update_free_principal_value`,
+        typeArguments: [coinType],
+        arguments: [
+          tx.object(vault.vault_id),
+          tx.object(VOLO_ORACLE_CONFIG_ID),
+          tx.object(SUI_CLOCK_OBJECT_ID),
+        ],
+      });
 
       // Call execute_deposit
       // Note: max_shares_received should be calculated based on current vault state
@@ -402,6 +448,92 @@ export function VaultDetail({ vault }: VaultDetailProps) {
           Coin Type: {vault.coin_type.split("::").pop() || vault.coin_type}
         </p>
       </header>
+
+      {/* Vault Information */}
+      <Card>
+        <CardHeader>
+          <h2 className="text-lg font-medium">Vault Information</h2>
+        </CardHeader>
+        <CardBody className="space-y-4">
+          {isLoadingVaultInfo ? (
+            <div className="flex items-center gap-2">
+              <Spinner size="sm" />
+              <span className="text-sm text-default-500">Loading...</span>
+            </div>
+          ) : (
+            <>
+              <div>
+                <p className="text-sm text-default-500">Free Principal</p>
+                <p className="font-medium font-mono">
+                  {freePrincipal !== null
+                    ? formatAmount(Number(freePrincipal))
+                    : "N/A"}
+                </p>
+              </div>
+              <div>
+                <p className="text-sm text-default-500">Claimable Principal</p>
+                <p className="font-medium font-mono">
+                  {claimablePrincipal !== null
+                    ? formatAmount(Number(claimablePrincipal))
+                    : "N/A"}
+                </p>
+              </div>
+            </>
+          )}
+        </CardBody>
+      </Card>
+
+      {/* Assets Value Information */}
+      {assetTypes && assetTypes.length > 0 && (
+        <Card>
+          <CardHeader>
+            <h2 className="text-lg font-medium">Assets Value</h2>
+          </CardHeader>
+          <CardBody>
+            {isLoadingAssets ? (
+              <div className="flex items-center gap-2">
+                <Spinner size="sm" />
+                <span className="text-sm text-default-500">Loading...</span>
+              </div>
+            ) : assets.length === 0 ? (
+              <div className="text-center py-4 text-default-500">
+                <p>No assets found.</p>
+              </div>
+            ) : (
+              <Table aria-label="Assets value">
+                <TableHeader>
+                  <TableColumn>ASSET TYPE</TableColumn>
+                  <TableColumn>USD VALUE</TableColumn>
+                  <TableColumn>LAST UPDATED</TableColumn>
+                </TableHeader>
+                <TableBody>
+                  {assets.map((asset) => (
+                    <TableRow key={asset.assetType}>
+                      <TableCell>
+                        <code className="text-xs">{asset.assetType}</code>
+                      </TableCell>
+                      <TableCell>
+                        <span className="font-mono text-sm">
+                          {asset.usdValue.toString()}
+                        </span>
+                      </TableCell>
+                      <TableCell>
+                        <span className="text-sm">
+                          {asset.lastUpdated > 0
+                            ? dayjs(asset.lastUpdated).format(
+                                "YYYY-MM-DD HH:mm:ss",
+                              )
+                            : "Never"}
+                        </span>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+          </CardBody>
+        </Card>
+      )}
 
       {/* Deposit Requests */}
       <Card>
