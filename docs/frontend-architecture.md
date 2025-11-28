@@ -122,6 +122,17 @@ signAndExecute({ transaction: tx });
 
 **Error Code Mapping**: `web/src/utils/errorCodes.ts` maps error codes (1xxx-5xxx ranges) to readable messages.
 
+### Execute Deposit Confirmation
+
+**Location**: `web/src/components/manage/VaultDetail.tsx`
+
+Before executing a deposit, the system performs a two-step dry run verification:
+
+1. First dry run with `u256::MAX` to extract actual shares from `DepositExecuted` event
+2. Second dry run with actual shares (no buffer) to verify the final transaction
+
+The confirmation dialog displays data extracted from events (`TotalUSDValueUpdated`, `ShareRatioUpdated`) and simulated shares calculated from event data, allowing operators to verify transaction correctness before execution.
+
 ---
 
 ## State Management

@@ -1,6 +1,5 @@
 import type { VaultInfo } from "@/lib/types";
 import type { DepositRequest } from "@/hooks/useVaultRequests";
-import type { DryRunTransactionBlockResponse } from "@mysten/sui/jsonRpc";
 
 import {
   useCurrentAccount,
@@ -41,13 +40,11 @@ import {
 import { useOperatorCaps } from "@/hooks/useOperatorCaps";
 import { useVaultInfo } from "@/hooks/useVaultInfo";
 import { useVaultAssets } from "@/hooks/useVaultAssets";
-import { useOracleConfig } from "@/hooks/useOracleConfig";
 import { loggers } from "@/utils/debug";
 import {
   showTransactionErrorToast,
   extractTransactionErrorInfo,
 } from "@/utils/transaction";
-import { ALL_ERROR_CODES } from "@/utils/errorCodes";
 
 const { errorLog, debugLog } = loggers("app:manage:vault-detail");
 
@@ -91,7 +88,6 @@ export function VaultDetail({ vault }: VaultDetailProps) {
   const currentAccount = useCurrentAccount();
   const { operatorCaps } = useOperatorCaps();
   const client = useSuiClient();
-  const { oracleConfig } = useOracleConfig();
 
   const { mutate: signAndExecute, isPending } = useSignAndExecuteTransaction();
 
@@ -208,11 +204,15 @@ export function VaultDetail({ vault }: VaultDetailProps) {
   );
   const [dryrunResult, setDryrunResult] = useState<{
     shares: string;
-    oraclePrice: string;
+    shareRatio: string;
+    totalUsdValueBefore?: string;
+    totalUsdValueAfter?: string;
+    usdValueDeposited?: string;
+    shareRatioFromEvent?: string;
+    simulatedShares?: string;
+    sharesDifference?: string;
     isLoading: boolean;
     error?: string;
-    errorCode?: number;
-    errorDetails?: string;
   } | null>(null);
   const [updateSwitchboardPrice, setUpdateSwitchboardPrice] = useState(false);
   const [updateOraclePrice, setUpdateOraclePrice] = useState(false);
@@ -224,6 +224,7 @@ export function VaultDetail({ vault }: VaultDetailProps) {
   const buildExecuteDepositTransaction = (
     request: DepositRequest,
     operatorCap: { objectId: string },
+    maxSharesReceived: bigint,
   ): Transaction => {
     const tx = new Transaction();
 
@@ -277,13 +278,7 @@ export function VaultDetail({ vault }: VaultDetailProps) {
       ],
     });
 
-    // Call execute_deposit
-    // Note: max_shares_received should be calculated based on current vault state
-    // For now, we'll use expected_shares * 1.1 (10% slippage tolerance)
-    const expectedSharesBigInt = BigInt(request.expected_shares);
-    const maxSharesReceived =
-      (expectedSharesBigInt * BigInt(110)) / BigInt(100); // 10% slippage
-
+    // Call execute_deposit with provided max_shares_received
     tx.moveCall({
       target: `${VOLO_VAULT_PACKAGE_ID}::operation::execute_deposit`,
       typeArguments: [coinType],
@@ -294,8 +289,8 @@ export function VaultDetail({ vault }: VaultDetailProps) {
         tx.object(vault.reward_manager_id),
         tx.object(SUI_CLOCK_OBJECT_ID),
         tx.object(VOLO_ORACLE_CONFIG_ID),
-        tx.pure.u64(String(request.request_id)),
-        tx.pure.u256(maxSharesReceived.toString()),
+        tx.pure.u64(request.request_id),
+        tx.pure.u256(maxSharesReceived),
       ],
     });
 
@@ -306,19 +301,6 @@ export function VaultDetail({ vault }: VaultDetailProps) {
     if (!currentAccount) {
       addToast({
         title: "Wallet not connected",
-        color: "danger",
-      });
-
-      return;
-    }
-
-    // Get first available OperatorCap
-    const operatorCap = operatorCaps?.[0];
-
-    if (!operatorCap) {
-      addToast({
-        title: "No OperatorCap found",
-        description: "You need an OperatorCap to execute deposits",
         color: "danger",
       });
 
@@ -349,67 +331,51 @@ export function VaultDetail({ vault }: VaultDetailProps) {
 
     // Set pending request and show confirmation dialog
     setPendingRequest(request);
-    setDryrunResult({ shares: "", oraclePrice: "", isLoading: true });
+    setDryrunResult({
+      shares: "",
+      shareRatio: "",
+      totalUsdValueBefore: undefined,
+      totalUsdValueAfter: undefined,
+      usdValueDeposited: undefined,
+      shareRatioFromEvent: undefined,
+      simulatedShares: undefined,
+      sharesDifference: undefined,
+      isLoading: true,
+    });
     setConfirmDialogOpen(true);
 
     // Perform dryrun to get simulation results
     try {
-      // Build transaction using the same function that will be used for execution
-      const tx = buildExecuteDepositTransaction(request, operatorCap);
+      // Get first available OperatorCap
+      const operatorCap = operatorCaps?.[0];
 
-      // Set sender for dryrun (required for dryRunTransactionBlock)
-      tx.setSender(currentAccount.address);
-
-      // Get oracle price for the coin type
-      let oraclePrice = "0";
-
-      if (oracleConfig) {
-        const priceInfo = oracleConfig.aggregators.get(vault.coin_type || "");
-
-        if (priceInfo) {
-          oraclePrice = priceInfo.price;
-        }
+      if (!operatorCap) {
+        throw new Error("You need an OperatorCap to execute deposits");
       }
 
-      // Perform dryrun to get actual shares
-      // Note: tx.build() internally calls resolveTransactionPlugin which calls dryRunTransactionBlock
-      // We can extract dryrun result from build error's cause if build fails
-      let actualShares: string | null = null;
+      // Step 1: dryrun with u256::MAX to get estimated shares
+      const u256Max = BigInt(
+        "115792089237316195423570985008687907853269984665640564039457584007913129639935",
+      );
 
-      await tx.build({ client }).catch((e) => {
-        // Extract error info from build error (only works for errors with error.cause)
+      const firstTx = buildExecuteDepositTransaction(
+        request,
+        operatorCap,
+        u256Max,
+      );
+
+      // Set sender for dryrun (required for dryRunTransactionBlock)
+      firstTx.setSender(currentAccount.address);
+
+      // Build the transaction for dryrun and we can catch errors in advance as
+      // there's an internal dryrun but unfortunately we can not get dryrun
+      // result from build.
+      const firstTxBytes = await firstTx.build({ client }).catch((e) => {
+        // Try to get explained error message
         const { errorMessage: extractedErrorMessage } =
           extractTransactionErrorInfo(e);
 
-        // Try to extract dryrun result from error.cause to get shares
-        if (e instanceof Error && "cause" in e && e.cause) {
-          const cause = e.cause as DryRunTransactionBlockResponse;
-
-          // Check if this is a DryRunTransactionBlockResponse and extract shares
-          if (cause.effects && cause.events !== undefined) {
-            if (cause.effects?.status?.status === "success" && cause.events) {
-              const depositEvent = cause.events.find((event) =>
-                event.type.includes("DepositExecuted"),
-              );
-
-              if (depositEvent?.parsedJson) {
-                const parsed = depositEvent.parsedJson as {
-                  shares?: string | number;
-                };
-
-                if (parsed.shares !== undefined) {
-                  actualShares =
-                    typeof parsed.shares === "string"
-                      ? parsed.shares
-                      : String(parsed.shares);
-                }
-              }
-            }
-          }
-        }
-
-        // Throw new error with extracted message, or original error if no extraction
-        // Error logging will be handled by outer catch
+        // Throw new error with explained message, or original error if no explanation
         throw extractedErrorMessage
           ? new Error(
               `${extractedErrorMessage} - ${
@@ -419,34 +385,227 @@ export function VaultDetail({ vault }: VaultDetailProps) {
           : e;
       });
 
-      // Cache the transaction after successful build to ensure execution uses the same one
-      setCachedTransaction(tx);
+      // Now dryrun the transaction to extract actual shares and events
+      const firstDryrunResult = await client.dryRunTransactionBlock({
+        transactionBlock: firstTxBytes,
+      });
+
+      debugLog("dryrun result: %o", firstDryrunResult);
+
+      // Extract information from events
+      let actualShares: string | null = null;
+      let totalUsdValueBefore: string | null = null;
+      let totalUsdValueAfter: string | null = null;
+      let shareRatioBefore: string | null = null;
+
+      if (
+        firstDryrunResult.effects?.status?.status === "success" &&
+        firstDryrunResult.events
+      ) {
+        // Extract DepositExecuted event for shares
+        const depositEvent = firstDryrunResult.events.find((event) =>
+          event.type.includes("DepositExecuted"),
+        );
+
+        if (depositEvent?.parsedJson) {
+          const parsed = depositEvent.parsedJson as {
+            shares?: string | number;
+          };
+
+          if (parsed.shares !== undefined) {
+            actualShares =
+              typeof parsed.shares === "string"
+                ? parsed.shares
+                : String(parsed.shares);
+          }
+        }
+
+        // Extract TotalUSDValueUpdated events (before and after)
+        const totalUsdValueEvents = firstDryrunResult.events.filter((event) =>
+          event.type.includes("TotalUSDValueUpdated"),
+        );
+
+        // Find the first and last TotalUSDValueUpdated events
+        // The first one is before deposit, the last one is after deposit
+        if (totalUsdValueEvents.length >= 1) {
+          const firstEvent = totalUsdValueEvents[0];
+
+          if (firstEvent?.parsedJson) {
+            const parsed = firstEvent.parsedJson as {
+              total_usd_value?: string | number;
+            };
+
+            if (parsed.total_usd_value !== undefined) {
+              totalUsdValueBefore =
+                typeof parsed.total_usd_value === "string"
+                  ? parsed.total_usd_value
+                  : String(parsed.total_usd_value);
+            }
+          }
+        }
+
+        if (totalUsdValueEvents.length >= 2) {
+          const lastEvent = totalUsdValueEvents[totalUsdValueEvents.length - 1];
+
+          if (lastEvent?.parsedJson) {
+            const parsed = lastEvent.parsedJson as {
+              total_usd_value?: string | number;
+            };
+
+            if (parsed.total_usd_value !== undefined) {
+              totalUsdValueAfter =
+                typeof parsed.total_usd_value === "string"
+                  ? parsed.total_usd_value
+                  : String(parsed.total_usd_value);
+            }
+          }
+        } else if (totalUsdValueEvents.length === 1) {
+          // If only one event, it's the after value
+          const event = totalUsdValueEvents[0];
+
+          if (event?.parsedJson) {
+            const parsed = event.parsedJson as {
+              total_usd_value?: string | number;
+            };
+
+            if (parsed.total_usd_value !== undefined) {
+              totalUsdValueAfter =
+                typeof parsed.total_usd_value === "string"
+                  ? parsed.total_usd_value
+                  : String(parsed.total_usd_value);
+            }
+          }
+        }
+
+        // Extract ShareRatioUpdated event (should be only one, before deposit)
+        const shareRatioEvent = firstDryrunResult.events.find((event) =>
+          event.type.includes("ShareRatioUpdated"),
+        );
+
+        if (shareRatioEvent?.parsedJson) {
+          const parsed = shareRatioEvent.parsedJson as {
+            share_ratio?: string | number;
+          };
+
+          if (parsed.share_ratio !== undefined) {
+            shareRatioBefore =
+              typeof parsed.share_ratio === "string"
+                ? parsed.share_ratio
+                : String(parsed.share_ratio);
+          }
+        }
+      }
+
+      // Default shareRatioBefore to 1 * DECIMALS if not found
+      // This matches Move logic: if total_shares == 0, return vault_utils::to_decimals(1)
+      if (!shareRatioBefore) {
+        shareRatioBefore = String(1e9); // vault_utils::DECIMALS = 10^9
+      }
+
+      if (!actualShares) {
+        throw new Error("Failed to extract shares from dryrun result");
+      }
+
+      // Step 2: Build transaction with actual shares
+      const actualSharesBigInt = BigInt(actualShares);
+
+      const finalTx = buildExecuteDepositTransaction(
+        request,
+        operatorCap,
+        actualSharesBigInt,
+      );
+
+      finalTx.setSender(currentAccount.address);
+
+      // Step 3: Verify the final transaction can pass build without errors
+      await finalTx.build({ client }).catch((e) => {
+        const { errorMessage: extractedErrorMessage } =
+          extractTransactionErrorInfo(e);
+
+        throw extractedErrorMessage
+          ? new Error(
+              `${extractedErrorMessage} - ${
+                e instanceof Error ? e.message : String(e)
+              }`,
+            )
+          : e;
+      });
+
+      // Step 4: Calculate values from events and simulate shares
+      const DECIMALS = BigInt(1e9); // vault_utils::DECIMALS = 10^9
+
+      // Calculate USD value deposited from events
+      let usdValueDeposited: string | null = null;
+
+      if (totalUsdValueBefore && totalUsdValueAfter) {
+        const before = BigInt(totalUsdValueBefore);
+        const after = BigInt(totalUsdValueAfter);
+        const deposited = after - before;
+
+        usdValueDeposited = deposited.toString();
+      }
+
+      // Simulate shares using share_ratio_before from event
+      // Following Move logic: user_shares = vault_utils::div_d(new_usd_value_deposited, share_ratio_before)
+      // where div_d(v1, v2) = v1 * DECIMALS / v2
+      let simulatedShares: string | null = null;
+      let sharesDifference: string | null = null;
+
+      if (shareRatioBefore && usdValueDeposited) {
+        const usdValueDepositedBigInt = BigInt(usdValueDeposited);
+        const shareRatioBeforeBigInt = BigInt(shareRatioBefore);
+
+        // Simulate: shares = div_d(usdValueDeposited, shareRatioBefore)
+        // = usdValueDeposited * DECIMALS / shareRatioBefore
+        simulatedShares = (
+          (usdValueDepositedBigInt * DECIMALS) /
+          shareRatioBeforeBigInt
+        ).toString();
+
+        // Calculate difference between simulated and actual shares
+        const simulatedBigInt = BigInt(simulatedShares);
+        const actualBigInt = actualSharesBigInt;
+        const difference = actualBigInt - simulatedBigInt;
+
+        sharesDifference = difference.toString();
+      }
+
+      // Use share_ratio_before for display (more accurate than estimated)
+      const shareRatioForDisplay = shareRatioBefore || "";
+
+      // Cache the final transaction for execution
+      setCachedTransaction(finalTx);
 
       setDryrunResult({
-        shares: actualShares || "",
-        oraclePrice,
+        shares: actualShares,
+        shareRatio: shareRatioForDisplay,
+        totalUsdValueBefore: totalUsdValueBefore || undefined,
+        totalUsdValueAfter: totalUsdValueAfter || undefined,
+        usdValueDeposited: usdValueDeposited || undefined,
+        shareRatioFromEvent: shareRatioBefore || undefined,
+        simulatedShares: simulatedShares || undefined,
+        sharesDifference: sharesDifference || undefined,
         isLoading: false,
       });
     } catch (err) {
-      // Handle common errors (build errors are already processed above)
-      // JsonRpcError from dryRunTransactionBlock is already re-thrown as regular Error above
-      const errorMessage =
-        err instanceof Error ? err.message : String(err ?? "Unknown error");
-      const errorDetails = err instanceof Error ? String(err) : errorMessage;
-
       setDryrunResult({
         shares: "",
-        oraclePrice: "",
+        shareRatio: "",
+        totalUsdValueBefore: undefined,
+        totalUsdValueAfter: undefined,
+        usdValueDeposited: undefined,
+        shareRatioFromEvent: undefined,
+        simulatedShares: undefined,
+        sharesDifference: undefined,
         isLoading: false,
-        error: errorMessage,
-        errorDetails: errorDetails || errorMessage,
+        error:
+          err instanceof Error ? err.message : String(err ?? "Unknown error"),
       });
 
       // Clear cached transaction on error
       setCachedTransaction(null);
 
-      // Log full error details for admin debugging
-      errorLog("Dryrun failed - Error: %s, Details: %O", errorMessage, err);
+      errorLog("Dryrun failed: %O", err);
     }
   };
 
@@ -484,10 +643,7 @@ export function VaultDetail({ vault }: VaultDetailProps) {
       let tx = cachedTransaction;
 
       if (!tx) {
-        debugLog(
-          "Cached transaction not found, rebuilding (this should not happen)",
-        );
-        tx = buildExecuteDepositTransaction(pendingRequest, operatorCap);
+        throw new Error("Cached transaction not found. Please retry.");
       }
 
       signAndExecute(
@@ -1001,42 +1157,9 @@ export function VaultDetail({ vault }: VaultDetailProps) {
                         {dryrunResult.error}
                       </p>
                     </div>
-                    {dryrunResult.errorCode && (
-                      <div>
-                        <p className="text-xs font-medium text-danger-700">
-                          Error Code: {dryrunResult.errorCode}
-                        </p>
-                        <p className="text-xs text-danger-600">
-                          {ALL_ERROR_CODES[dryrunResult.errorCode] ||
-                            "Unknown error code"}
-                        </p>
-                      </div>
-                    )}
-                    {dryrunResult.errorDetails &&
-                      dryrunResult.errorDetails !== dryrunResult.error && (
-                        <details className="mt-2">
-                          <summary className="cursor-pointer text-xs text-danger-700">
-                            Show full error details (for admin debugging)
-                          </summary>
-                          <pre className="mt-2 max-h-40 overflow-auto rounded bg-danger-100 p-2 text-xs text-danger-900">
-                            {dryrunResult.errorDetails}
-                          </pre>
-                        </details>
-                      )}
                   </div>
                 ) : (
                   <>
-                    <div>
-                      <p className="text-sm text-default-500">
-                        Oracle Price (from OracleConfig)
-                      </p>
-                      <p className="font-medium">
-                        {dryrunResult?.oraclePrice
-                          ? formatAmount(Number(dryrunResult.oraclePrice), 9)
-                          : "N/A"}
-                      </p>
-                    </div>
-
                     <div>
                       <p className="text-sm text-default-500">
                         Expected Shares (from request)
@@ -1048,22 +1171,111 @@ export function VaultDetail({ vault }: VaultDetailProps) {
                       </p>
                     </div>
 
-                    {dryrunResult?.shares ? (
+                    {dryrunResult?.shares && (
                       <div>
                         <p className="text-sm text-default-500">
-                          Simulated Shares (from dryrun)
+                          Actual Shares (from dryrun)
                         </p>
                         <p className="font-mono text-sm font-medium">
                           {formatExpectedShares(dryrunResult.shares)}
                         </p>
                       </div>
-                    ) : (
+                    )}
+
+                    {dryrunResult?.totalUsdValueBefore !== undefined &&
+                      dryrunResult?.totalUsdValueAfter !== undefined && (
+                        <div className="space-y-1 rounded-lg bg-default-50 p-3">
+                          <p className="text-xs font-medium text-default-700">
+                            Total USD Value (from events)
+                          </p>
+                          <div className="space-y-1 text-xs">
+                            <div className="flex justify-between">
+                              <span className="text-default-500">Before:</span>
+                              <span className="font-mono">
+                                {formatAmount(
+                                  Number(dryrunResult.totalUsdValueBefore),
+                                  9,
+                                )}
+                              </span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-default-500">After:</span>
+                              <span className="font-mono">
+                                {formatAmount(
+                                  Number(dryrunResult.totalUsdValueAfter),
+                                  9,
+                                )}
+                              </span>
+                            </div>
+                            {dryrunResult?.usdValueDeposited && (
+                              <div className="flex justify-between border-t border-default-200 pt-1">
+                                <span className="font-medium text-default-700">
+                                  Deposited:
+                                </span>
+                                <span className="font-mono font-medium">
+                                  {formatAmount(
+                                    Number(dryrunResult.usdValueDeposited),
+                                    9,
+                                  )}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                    {dryrunResult?.shareRatioFromEvent && (
                       <div>
                         <p className="text-sm text-default-500">
-                          Simulated Shares (from dryrun)
+                          Share Ratio (from event)
                         </p>
-                        <p className="text-sm text-default-400 italic">
-                          N/A (not available from simulation)
+                        <p className="font-mono text-sm">
+                          {formatAmount(
+                            Number(dryrunResult.shareRatioFromEvent),
+                            9,
+                          )}
+                        </p>
+                      </div>
+                    )}
+
+                    {dryrunResult?.simulatedShares && (
+                      <div>
+                        <p className="text-sm text-default-500">
+                          Simulated Shares (calculated from events)
+                        </p>
+                        <p className="font-mono text-sm">
+                          {formatExpectedShares(dryrunResult.simulatedShares)}
+                        </p>
+                        <p className="text-xs text-default-400">
+                          Calculated: (usdValueDeposited × DECIMALS) /
+                          shareRatio
+                        </p>
+                      </div>
+                    )}
+
+                    {dryrunResult?.sharesDifference !== undefined && (
+                      <div>
+                        <p className="text-sm text-default-500">
+                          Shares Difference (Actual - Simulated)
+                        </p>
+                        <p
+                          className={`font-mono text-sm ${
+                            Number(dryrunResult.sharesDifference) === 0
+                              ? "text-success"
+                              : Number(dryrunResult.sharesDifference) > 0
+                                ? "text-warning"
+                                : "text-danger"
+                          }`}
+                        >
+                          {Number(dryrunResult.sharesDifference) === 0
+                            ? "0 (Perfect match)"
+                            : Number(dryrunResult.sharesDifference) > 0
+                              ? `+${formatExpectedShares(
+                                  dryrunResult.sharesDifference,
+                                )} (Actual higher)`
+                              : `${formatExpectedShares(
+                                  dryrunResult.sharesDifference,
+                                )} (Actual lower)`}
                         </p>
                       </div>
                     )}
