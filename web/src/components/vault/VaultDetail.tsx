@@ -1,6 +1,9 @@
 import type { VaultInfo } from "@/lib/types";
 
 import {
+  BreadcrumbItem,
+  Breadcrumbs,
+  Button,
   Card,
   CardBody,
   CardHeader,
@@ -12,17 +15,26 @@ import {
   TableColumn,
   TableHeader,
   TableRow,
+  Tooltip,
 } from "@heroui/react";
-import { useNavigate } from "react-router-dom";
 
+import { CopyButton } from "@/components/common/CopyButton";
 import { DepositForm } from "@/components/vault/DepositForm";
 import { UserPositions } from "@/components/vault/UserPositions";
 import { useUserReceipts } from "@/hooks/useUserReceipts";
 import { useVaultInfo } from "@/hooks/useVaultInfo";
-import { useVaultShareRatioHistory } from "@/hooks/useVaultShareRatioHistory";
+import { useVaultShareRatioHistoryGraphQL } from "@/hooks/useVaultShareRatioHistoryGraphQL";
 
 interface VaultDetailProps {
   vault: VaultInfo;
+}
+
+function truncateCoinType(coinType: string): string {
+  if (coinType.length <= 30) {
+    return coinType;
+  }
+
+  return `${coinType.slice(0, 20)}...${coinType.slice(-10)}`;
 }
 
 /**
@@ -30,8 +42,6 @@ interface VaultDetailProps {
  * Displays vault information and deposit form
  */
 export function VaultDetail({ vault }: VaultDetailProps) {
-  const navigate = useNavigate();
-
   const {
     depositFeeRate,
     totalShares,
@@ -41,8 +51,13 @@ export function VaultDetail({ vault }: VaultDetailProps) {
     isLoading: isLoadingVaultInfo,
   } = useVaultInfo(vault.vault_id);
 
-  const { history: shareRatioHistory, isLoading: isLoadingHistory } =
-    useVaultShareRatioHistory(vault.vault_id, 50);
+  const {
+    history: shareRatioHistory,
+    isLoading: isLoadingHistory,
+    loadMore,
+    hasMore,
+    oldestTimestamp,
+  } = useVaultShareRatioHistoryGraphQL(vault.vault_id, 50);
 
   // Check if user has receipts for this vault
   const { receipts, refetch: refetchReceipts } = useUserReceipts(
@@ -106,18 +121,37 @@ export function VaultDetail({ vault }: VaultDetailProps) {
   return (
     <section className="space-y-8">
       <header className="space-y-2">
-        <button
-          className="text-default-500 hover:text-foreground mb-4"
-          onClick={() => navigate(-1)}
-        >
-          ← Back
-        </button>
+        <Breadcrumbs>
+          <BreadcrumbItem href="/">Home</BreadcrumbItem>
+          <BreadcrumbItem>
+            <div className="flex items-center">
+              <Tooltip content={vault.vault_id}>
+                <span>
+                  Vault: {vault.vault_id.slice(0, 8)}...
+                  {vault.vault_id.slice(-6)}
+                </span>
+              </Tooltip>
+              <CopyButton disableTooltip value={vault.vault_id} />
+            </div>
+          </BreadcrumbItem>
+        </Breadcrumbs>
         <h1 className="text-3xl font-semibold">
           {vault.coin_type.split("::").pop() || "Vault"} Vault
         </h1>
-        <p className="text-default-500">
-          Vault ID: {vault.vault_id.slice(0, 8)}...{vault.vault_id.slice(-6)}
-        </p>
+        <div className="flex items-center gap-4 text-sm text-default-500">
+          <div className="flex items-center">
+            <Tooltip content={vault.coin_type}>
+              <span className="flex text-sm text-default-500">
+                Coin Type: {truncateCoinType(vault.coin_type)}
+              </span>
+            </Tooltip>
+            <CopyButton disableTooltip value={vault.coin_type} />
+          </div>
+          <span>
+            Creator: {vault.creator.slice(0, 8)}...{vault.creator.slice(-6)}
+          </span>
+          <span>Created: {new Date(vault.created_at_ms).toLocaleString()}</span>
+        </div>
       </header>
 
       {/* Vault Information - Full width */}
@@ -126,23 +160,6 @@ export function VaultDetail({ vault }: VaultDetailProps) {
           <h2 className="text-lg font-medium">Vault Information</h2>
         </CardHeader>
         <CardBody className="space-y-4">
-          <div>
-            <p className="text-sm text-default-500">Coin Type</p>
-            <p className="font-medium">{vault.coin_type}</p>
-          </div>
-          <div>
-            <p className="text-sm text-default-500">Creator</p>
-            <p className="font-mono text-sm">
-              {vault.creator.slice(0, 8)}...{vault.creator.slice(-6)}
-            </p>
-          </div>
-          <div>
-            <p className="text-sm text-default-500">Created</p>
-            <p className="text-sm">
-              {new Date(vault.created_at_ms).toLocaleString()}
-            </p>
-          </div>
-
           {/* Vault Metrics */}
           <div className="pt-4 border-t border-default-200">
             <p className="text-sm font-medium mb-3">Vault Metrics</p>
@@ -264,6 +281,27 @@ export function VaultDetail({ vault }: VaultDetailProps) {
                     ))}
                   </TableBody>
                 </Table>
+              )}
+              {shareRatioHistory.length > 0 && (
+                <div className="mt-4 space-y-2">
+                  {oldestTimestamp && (
+                    <p className="text-sm text-default-500 text-center">
+                      Loaded up to: {new Date(oldestTimestamp).toLocaleString()}
+                    </p>
+                  )}
+                  {hasMore && (
+                    <div className="flex justify-center">
+                      <Button
+                        color="primary"
+                        isLoading={isLoadingHistory}
+                        variant="flat"
+                        onPress={loadMore}
+                      >
+                        Load More
+                      </Button>
+                    </div>
+                  )}
+                </div>
               )}
             </CardBody>
           </Card>

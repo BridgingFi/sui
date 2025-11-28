@@ -29,10 +29,12 @@ import {
   TableColumn,
   TableHeader,
   TableRow,
+  Tooltip,
 } from "@heroui/react";
 import { useState } from "react";
 import dayjs from "dayjs";
 
+import { CopyButton } from "@/components/common/CopyButton";
 import {
   useDepositRequests,
   useWithdrawRequests,
@@ -805,9 +807,14 @@ export function VaultDetail({ vault }: VaultDetailProps) {
     <section className="space-y-8">
       <header className="space-y-2">
         <Breadcrumbs>
-          <BreadcrumbItem href="/manage">Manage</BreadcrumbItem>
+          <BreadcrumbItem href="/manage">Vaults</BreadcrumbItem>
           <BreadcrumbItem>
-            Vault ({truncateAddress(vault.vault_id)})
+            <div className="flex items-center">
+              <Tooltip content={vault.vault_id}>
+                <span>{truncateAddress(vault.vault_id)}</span>
+              </Tooltip>
+              <CopyButton disableTooltip value={vault.vault_id} />
+            </div>
           </BreadcrumbItem>
         </Breadcrumbs>
         <p className="text-default-500">

@@ -2,6 +2,8 @@ move/**/build/
 node_modules/
 web/dist/
 
+schema.graphql
+
 # Test coverage files
 **/.coverage_map.mvcov
 

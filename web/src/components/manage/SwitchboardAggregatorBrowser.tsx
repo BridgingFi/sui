@@ -12,12 +12,12 @@ import {
   TableHeader,
   TableRow,
 } from "@heroui/react";
-import { Copy, Search, NavArrowLeft, NavArrowRight } from "iconoir-react";
+import { Search, NavArrowLeft, NavArrowRight } from "iconoir-react";
 import { useState, useMemo } from "react";
-import { addToast } from "@heroui/react";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
 
+import { CopyButton } from "@/components/common/CopyButton";
 import { useSwitchboardAggregators } from "@/hooks/useSwitchboardAggregators";
 
 dayjs.extend(relativeTime);
@@ -66,15 +66,6 @@ function formatTimestamp(timestampMs: string): string {
   } catch {
     return "Unknown";
   }
-}
-
-function copyToClipboard(text: string) {
-  navigator.clipboard.writeText(text);
-  addToast({
-    title: "Copied",
-    description: "Address copied to clipboard",
-    color: "success",
-  });
 }
 
 interface SwitchboardAggregatorBrowserProps {
@@ -184,95 +175,106 @@ export function SwitchboardAggregatorBrowser({
       <CardBody>
         {filteredAggregators.length === 0 ? (
           <div className="py-8 text-center text-default-500">
-            {searchQuery ? "No aggregators found" : "No aggregators available"}
+            {searchQuery
+              ? "No aggregators found on this page"
+              : "No aggregators available"}
+            {searchQuery && pagination.hasNextPage && (
+              <p className="text-sm mt-2">
+                Try loading the next page - there might be matching results.
+              </p>
+            )}
           </div>
         ) : (
-          <>
-            <div className="max-h-96 overflow-y-auto">
-              <Table aria-label="Switchboard Aggregators">
-                <TableHeader>
-                  <TableColumn>Name</TableColumn>
-                  <TableColumn>Address</TableColumn>
-                  <TableColumn>Current Value</TableColumn>
-                  <TableColumn>Last Updated</TableColumn>
-                  <TableColumn>Actions</TableColumn>
-                </TableHeader>
-                <TableBody>
-                  {filteredAggregators.map((aggregator) => (
-                    <TableRow key={aggregator.address}>
-                      <TableCell>{aggregator.name}</TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <span>{truncateAddress(aggregator.address)}</span>
-                          <Button
-                            isIconOnly
-                            size="sm"
-                            variant="light"
-                            onPress={() => copyToClipboard(aggregator.address)}
-                          >
-                            <Copy className="w-4 h-4" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        {aggregator.current_result
-                          ? formatValue(aggregator.current_result.result.value)
-                          : "N/A"}
-                      </TableCell>
-                      <TableCell>
-                        {aggregator.current_result
-                          ? formatTimestamp(
-                              aggregator.current_result.timestamp_ms,
-                            )
-                          : "N/A"}
-                      </TableCell>
-                      <TableCell>
-                        {onSelect && (
-                          <Button
-                            color="primary"
-                            size="sm"
-                            variant="flat"
-                            onPress={() => onSelect(aggregator.address)}
-                          >
-                            Select
-                          </Button>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+          <div className="max-h-96 overflow-y-auto">
+            <Table aria-label="Switchboard Aggregators">
+              <TableHeader>
+                <TableColumn>Name</TableColumn>
+                <TableColumn>Address</TableColumn>
+                <TableColumn>Current Value</TableColumn>
+                <TableColumn>Last Updated</TableColumn>
+                <TableColumn>Actions</TableColumn>
+              </TableHeader>
+              <TableBody>
+                {filteredAggregators.map((aggregator) => (
+                  <TableRow key={aggregator.address}>
+                    <TableCell>{aggregator.name}</TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <span>{truncateAddress(aggregator.address)}</span>
+                        <CopyButton disableTooltip value={aggregator.address} />
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      {aggregator.current_result
+                        ? formatValue(aggregator.current_result.result.value)
+                        : "N/A"}
+                    </TableCell>
+                    <TableCell>
+                      {aggregator.current_result
+                        ? formatTimestamp(
+                            aggregator.current_result.timestamp_ms,
+                          )
+                        : "N/A"}
+                    </TableCell>
+                    <TableCell>
+                      {onSelect && (
+                        <Button
+                          color="primary"
+                          size="sm"
+                          variant="flat"
+                          onPress={() => onSelect(aggregator.address)}
+                        >
+                          Select
+                        </Button>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+        {/* Pagination controls - always show if there's pagination available */}
+        {(pagination.hasNextPage || cursors.length > 0) && (
+          <div className="mt-4 flex items-center justify-between">
+            <div className="text-sm text-default-500">
+              {filteredAggregators.length > 0 ? (
+                <>
+                  Showing {filteredAggregators.length} aggregator
+                  {filteredAggregators.length !== 1 ? "s" : ""}
+                  {searchQuery && " (filtered)"}
+                </>
+              ) : (
+                <>
+                  {searchQuery
+                    ? "No matches on this page"
+                    : "No aggregators on this page"}
+                </>
+              )}
             </div>
-            {/* Pagination controls */}
-            <div className="mt-4 flex items-center justify-between">
-              <div className="text-sm text-default-500">
-                Showing {filteredAggregators.length} aggregator
-                {filteredAggregators.length !== 1 ? "s" : ""}
-              </div>
-              <div className="flex gap-2">
-                <Button
-                  isDisabled={cursors.length === 0}
-                  isLoading={isFetching}
-                  size="sm"
-                  variant="flat"
-                  onPress={handlePreviousPage}
-                >
-                  <NavArrowLeft className="w-4 h-4" />
-                  Previous
-                </Button>
-                <Button
-                  isDisabled={!pagination.hasNextPage}
-                  isLoading={isFetching}
-                  size="sm"
-                  variant="flat"
-                  onPress={handleNextPage}
-                >
-                  Next
-                  <NavArrowRight className="w-4 h-4" />
-                </Button>
-              </div>
+            <div className="flex gap-2">
+              <Button
+                isDisabled={cursors.length === 0}
+                isLoading={isFetching}
+                size="sm"
+                variant="flat"
+                onPress={handlePreviousPage}
+              >
+                <NavArrowLeft className="w-4 h-4" />
+                Previous
+              </Button>
+              <Button
+                isDisabled={!pagination.hasNextPage}
+                isLoading={isFetching}
+                size="sm"
+                variant="flat"
+                onPress={handleNextPage}
+              >
+                Next
+                <NavArrowRight className="w-4 h-4" />
+              </Button>
             </div>
-          </>
+          </div>
         )}
       </CardBody>
     </Card>

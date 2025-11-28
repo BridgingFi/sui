@@ -18,7 +18,13 @@
       "@/*": ["src/*"]
     },
     "types": ["vite/client"],
-    "jsx": "react-jsx"
+    "jsx": "react-jsx",
+    "plugins": [
+      {
+        "name": "@0no-co/graphqlsp",
+        "schema": "./src/gql/schema.graphql"
+      }
+    ]
   },
   "include": ["src"],
   "references": [{ "path": "./tsconfig.node.json" }]

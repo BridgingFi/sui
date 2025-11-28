@@ -129,7 +129,7 @@ export function VaultList({
       <section className="space-y-6">
         <header className="space-y-2">
           <Breadcrumbs>
-            <BreadcrumbItem>Manage</BreadcrumbItem>
+            <BreadcrumbItem>Vaults</BreadcrumbItem>
           </Breadcrumbs>
           <p className="text-default-500">
             Monitor queued deposits and withdrawals, and execute batched
@@ -153,7 +153,7 @@ export function VaultList({
     <section className="space-y-6">
       <header className="space-y-2">
         <Breadcrumbs>
-          <BreadcrumbItem>Manage</BreadcrumbItem>
+          <BreadcrumbItem>Vaults</BreadcrumbItem>
         </Breadcrumbs>
         <p className="text-default-500">
           Monitor queued deposits and withdrawals, and execute batched

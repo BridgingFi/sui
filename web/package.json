@@ -5,7 +5,7 @@
   "type": "module",
   "packageManager": "pnpm@10.23.0",
   "engines": {
-    "node": "^20.19.0",
+    "node": "^22.19.0",
     "pnpm": "^10.23.0"
   },
   "scripts": {
@@ -13,9 +13,12 @@
     "build": "tsc && vite build",
     "build:testnet": "tsc && vite build --mode testnet",
     "preview": "vite preview",
-    "lint": "eslint \"src/**/*.{ts,tsx}\""
+    "lint": "eslint \"src/**/*.{ts,tsx}\"",
+    "codegen": "graphql-codegen --config codegen.ts",
+    "codegen:watch": "graphql-codegen --config codegen.ts --watch"
   },
   "dependencies": {
+    "@apollo/client": "^4.0.9",
     "@fontsource/inter": "^5.2.8",
     "@heroui/react": "^2.4.23",
     "@mysten/dapp-kit": "^0.19.8",
@@ -27,6 +30,7 @@
     "dayjs": "^1.11.19",
     "debug": "^4.4.3",
     "framer-motion": "^11.18.2",
+    "graphql": "^16.12.0",
     "iconoir-react": "^7.11.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
@@ -36,9 +40,15 @@
     "zustand": "^4.5.2"
   },
   "devDependencies": {
+    "@0no-co/graphqlsp": "^1.15.1",
     "@eslint/compat": "1.2.8",
     "@eslint/eslintrc": "3.3.1",
     "@eslint/js": "9.25.1",
+    "@graphql-codegen/cli": "^6.1.0",
+    "@graphql-codegen/client-preset": "^5.2.0",
+    "@graphql-codegen/schema-ast": "^5.0.0",
+    "@graphql-codegen/typescript": "^5.0.5",
+    "@graphql-codegen/typescript-operations": "^5.0.5",
     "@tailwindcss/postcss": "4.1.11",
     "@tailwindcss/vite": "4.1.11",
     "@types/debug": "^4.1.12",
