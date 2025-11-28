@@ -1,6 +1,14 @@
 import type { VaultInfo } from "@/lib/types";
 import type { DepositRequest } from "@/hooks/useVaultRequests";
+import type { DryRunTransactionBlockResponse } from "@mysten/sui/jsonRpc";
 
+import {
+  useCurrentAccount,
+  useSignAndExecuteTransaction,
+  useSuiClient,
+} from "@mysten/dapp-kit";
+import { Transaction } from "@mysten/sui/transactions";
+import { SUI_CLOCK_OBJECT_ID } from "@mysten/sui/utils";
 import {
   addToast,
   BreadcrumbItem,
@@ -9,6 +17,12 @@ import {
   Card,
   CardBody,
   CardHeader,
+  Checkbox,
+  Modal,
+  ModalBody,
+  ModalContent,
+  ModalFooter,
+  ModalHeader,
   Spinner,
   Table,
   TableBody,
@@ -17,13 +31,6 @@ import {
   TableHeader,
   TableRow,
 } from "@heroui/react";
-import {
-  useCurrentAccount,
-  useSignAndExecuteTransaction,
-  useSuiClient,
-} from "@mysten/dapp-kit";
-import { Transaction } from "@mysten/sui/transactions";
-import { SUI_CLOCK_OBJECT_ID } from "@mysten/sui/utils";
 import { useState } from "react";
 import dayjs from "dayjs";
 
@@ -34,9 +41,13 @@ import {
 import { useOperatorCaps } from "@/hooks/useOperatorCaps";
 import { useVaultInfo } from "@/hooks/useVaultInfo";
 import { useVaultAssets } from "@/hooks/useVaultAssets";
+import { useOracleConfig } from "@/hooks/useOracleConfig";
 import { loggers } from "@/utils/debug";
-import { showTransactionErrorToast } from "@/utils/transaction";
-import { parseTransactionError } from "@/utils/errorCodes";
+import {
+  showTransactionErrorToast,
+  extractTransactionErrorInfo,
+} from "@/utils/transaction";
+import { ALL_ERROR_CODES } from "@/utils/errorCodes";
 
 const { errorLog, debugLog } = loggers("app:manage:vault-detail");
 
@@ -80,6 +91,7 @@ export function VaultDetail({ vault }: VaultDetailProps) {
   const currentAccount = useCurrentAccount();
   const { operatorCaps } = useOperatorCaps();
   const client = useSuiClient();
+  const { oracleConfig } = useOracleConfig();
 
   const { mutate: signAndExecute, isPending } = useSignAndExecuteTransaction();
 
@@ -189,6 +201,107 @@ export function VaultDetail({ vault }: VaultDetailProps) {
     string | number | null
   >(null);
 
+  // Confirmation dialog state
+  const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
+  const [pendingRequest, setPendingRequest] = useState<DepositRequest | null>(
+    null,
+  );
+  const [dryrunResult, setDryrunResult] = useState<{
+    shares: string;
+    oraclePrice: string;
+    isLoading: boolean;
+    error?: string;
+    errorCode?: number;
+    errorDetails?: string;
+  } | null>(null);
+  const [updateSwitchboardPrice, setUpdateSwitchboardPrice] = useState(false);
+  const [updateOraclePrice, setUpdateOraclePrice] = useState(false);
+  // Cache the transaction built for dryrun to ensure consistency with execution
+  const [cachedTransaction, setCachedTransaction] =
+    useState<Transaction | null>(null);
+
+  // Build transaction for execute_deposit (used for both dryrun and execution)
+  const buildExecuteDepositTransaction = (
+    request: DepositRequest,
+    operatorCap: { objectId: string },
+  ): Transaction => {
+    const tx = new Transaction();
+
+    // Extract coin type from vault coin_type
+    const coinType = vault.coin_type;
+
+    if (!coinType) {
+      throw new Error("Coin type is missing from vault");
+    }
+
+    // TODO: Future implementation - Update Switchboard aggregator prices if
+    // updateSwitchboardPrice is true
+    //
+    // This will require:
+    // 1. Get all aggregator IDs from OracleConfig
+    // 2. Use Switchboard SDK's fetchUpdateTx to get oracle updates
+    // 3. Add aggregator_submit_result_action::run calls to transaction
+    // 4. Re-run dryrun to update confirmation dialog with new results
+
+    // TODO: Future implementation - Update OracleConfig prices if
+    // updateOraclePrice is true
+    //
+    // This will require:
+    // 1. After Switchboard updates, call update_price for each asset type
+    // 2. Re-run dryrun to update confirmation dialog with new results
+
+    // TODO: Future implementation - Update all asset types before and after
+    // execute_deposit
+    //
+    // Only update_free_principal_value is called externally before
+    // execute_deposit and internally by execute_deposit after joining the
+    // coin (line 839). However, other asset types (coin_type assets, Defi
+    // positions) are not updated. Future implementation may need to update
+    // all asset types before and after execute_deposit.
+    debugLog(
+      "Executing deposit - Note: Currently only updating principal token value before execution. " +
+        "Other asset types (coin_type assets, Defi positions) are not updated. " +
+        "Future implementation needed to update all asset types before and after execute_deposit.",
+    );
+
+    // Update principal value before execute_deposit because execute_deposit
+    // calls get_total_usd_value (line 820) which requires all assets to be
+    // updated within MAX_UPDATE_INTERVAL which is 0.
+    tx.moveCall({
+      target: `${VOLO_VAULT_PACKAGE_ID}::vault::update_free_principal_value`,
+      typeArguments: [coinType],
+      arguments: [
+        tx.object(vault.vault_id),
+        tx.object(VOLO_ORACLE_CONFIG_ID),
+        tx.object(SUI_CLOCK_OBJECT_ID),
+      ],
+    });
+
+    // Call execute_deposit
+    // Note: max_shares_received should be calculated based on current vault state
+    // For now, we'll use expected_shares * 1.1 (10% slippage tolerance)
+    const expectedSharesBigInt = BigInt(request.expected_shares);
+    const maxSharesReceived =
+      (expectedSharesBigInt * BigInt(110)) / BigInt(100); // 10% slippage
+
+    tx.moveCall({
+      target: `${VOLO_VAULT_PACKAGE_ID}::operation::execute_deposit`,
+      typeArguments: [coinType],
+      arguments: [
+        tx.object(VOLO_OPERATION_ID),
+        tx.object(operatorCap.objectId),
+        tx.object(vault.vault_id),
+        tx.object(vault.reward_manager_id),
+        tx.object(SUI_CLOCK_OBJECT_ID),
+        tx.object(VOLO_ORACLE_CONFIG_ID),
+        tx.pure.u64(String(request.request_id)),
+        tx.pure.u256(maxSharesReceived.toString()),
+      ],
+    });
+
+    return tx;
+  };
+
   const handleExecuteDeposit = async (request: DepositRequest) => {
     if (!currentAccount) {
       addToast({
@@ -223,68 +336,159 @@ export function VaultDetail({ vault }: VaultDetailProps) {
       return;
     }
 
-    setExecutingRequestId(request.request_id);
+    // Validate deposit request amount (defensive check to avoid wasting gas)
+    if (BigInt(String(request.amount || 0)) === 0n) {
+      addToast({
+        title: "Invalid request",
+        description: "Deposit request amount is zero",
+        color: "danger",
+      });
+
+      return;
+    }
+
+    // Set pending request and show confirmation dialog
+    setPendingRequest(request);
+    setDryrunResult({ shares: "", oraclePrice: "", isLoading: true });
+    setConfirmDialogOpen(true);
+
+    // Perform dryrun to get simulation results
+    try {
+      // Build transaction using the same function that will be used for execution
+      const tx = buildExecuteDepositTransaction(request, operatorCap);
+
+      // Set sender for dryrun (required for dryRunTransactionBlock)
+      tx.setSender(currentAccount.address);
+
+      // Get oracle price for the coin type
+      let oraclePrice = "0";
+
+      if (oracleConfig) {
+        const priceInfo = oracleConfig.aggregators.get(vault.coin_type || "");
+
+        if (priceInfo) {
+          oraclePrice = priceInfo.price;
+        }
+      }
+
+      // Perform dryrun to get actual shares
+      // Note: tx.build() internally calls resolveTransactionPlugin which calls dryRunTransactionBlock
+      // We can extract dryrun result from build error's cause if build fails
+      let actualShares: string | null = null;
+
+      await tx.build({ client }).catch((e) => {
+        // Extract error info from build error (only works for errors with error.cause)
+        const { errorMessage: extractedErrorMessage } =
+          extractTransactionErrorInfo(e);
+
+        // Try to extract dryrun result from error.cause to get shares
+        if (e instanceof Error && "cause" in e && e.cause) {
+          const cause = e.cause as DryRunTransactionBlockResponse;
+
+          // Check if this is a DryRunTransactionBlockResponse and extract shares
+          if (cause.effects && cause.events !== undefined) {
+            if (cause.effects?.status?.status === "success" && cause.events) {
+              const depositEvent = cause.events.find((event) =>
+                event.type.includes("DepositExecuted"),
+              );
+
+              if (depositEvent?.parsedJson) {
+                const parsed = depositEvent.parsedJson as {
+                  shares?: string | number;
+                };
+
+                if (parsed.shares !== undefined) {
+                  actualShares =
+                    typeof parsed.shares === "string"
+                      ? parsed.shares
+                      : String(parsed.shares);
+                }
+              }
+            }
+          }
+        }
+
+        // Throw new error with extracted message, or original error if no extraction
+        // Error logging will be handled by outer catch
+        throw extractedErrorMessage
+          ? new Error(
+              `${extractedErrorMessage} - ${
+                e instanceof Error ? e.message : String(e)
+              }`,
+            )
+          : e;
+      });
+
+      // Cache the transaction after successful build to ensure execution uses the same one
+      setCachedTransaction(tx);
+
+      setDryrunResult({
+        shares: actualShares || "",
+        oraclePrice,
+        isLoading: false,
+      });
+    } catch (err) {
+      // Handle common errors (build errors are already processed above)
+      // JsonRpcError from dryRunTransactionBlock is already re-thrown as regular Error above
+      const errorMessage =
+        err instanceof Error ? err.message : String(err ?? "Unknown error");
+      const errorDetails = err instanceof Error ? String(err) : errorMessage;
+
+      setDryrunResult({
+        shares: "",
+        oraclePrice: "",
+        isLoading: false,
+        error: errorMessage,
+        errorDetails: errorDetails || errorMessage,
+      });
+
+      // Clear cached transaction on error
+      setCachedTransaction(null);
+
+      // Log full error details for admin debugging
+      errorLog("Dryrun failed - Error: %s, Details: %O", errorMessage, err);
+    }
+  };
+
+  const handleConfirmExecute = async () => {
+    if (!pendingRequest || !currentAccount) {
+      return;
+    }
+
+    // Get first available OperatorCap
+    const operatorCap = operatorCaps?.[0];
+
+    if (!operatorCap) {
+      addToast({
+        title: "No OperatorCap found",
+        description: "You need an OperatorCap to execute deposits",
+        color: "danger",
+      });
+
+      return;
+    }
+
+    setConfirmDialogOpen(false);
+    setExecutingRequestId(pendingRequest.request_id);
 
     try {
-      // Validate deposit request amount (defensive check to avoid wasting gas)
-      if (BigInt(String(request.amount || 0)) === 0n) {
-        throw new Error(
-          "Deposit request amount is zero. Should not execute deposit with zero amount.",
-        );
-      }
-
       debugLog(
         "Executing deposit - request_id:%s amount:%s expected_shares:%s",
-        request.request_id,
-        request.amount,
-        request.expected_shares,
+        pendingRequest.request_id,
+        pendingRequest.amount,
+        pendingRequest.expected_shares,
       );
 
-      const tx = new Transaction();
+      // Use cached transaction from dryrun to ensure consistency
+      // If cache is missing (shouldn't happen), rebuild it
+      let tx = cachedTransaction;
 
-      // Extract coin type from vault coin_type
-      const coinType = vault.coin_type;
-
-      if (!coinType) {
-        throw new Error("Coin type is missing from vault");
+      if (!tx) {
+        debugLog(
+          "Cached transaction not found, rebuilding (this should not happen)",
+        );
+        tx = buildExecuteDepositTransaction(pendingRequest, operatorCap);
       }
-
-      // Update principal value before execute_deposit because execute_deposit
-      // calls get_total_usd_value_before (line 820) which requires all assets
-      // to be updated within MAX_UPDATE_INTERVAL which is 0. execute_deposit
-      // will update it again after joining the coin (line 839) to get the
-      // accurate "after" value.
-      tx.moveCall({
-        target: `${VOLO_VAULT_PACKAGE_ID}::vault::update_free_principal_value`,
-        typeArguments: [coinType],
-        arguments: [
-          tx.object(vault.vault_id),
-          tx.object(VOLO_ORACLE_CONFIG_ID),
-          tx.object(SUI_CLOCK_OBJECT_ID),
-        ],
-      });
-
-      // Call execute_deposit
-      // Note: max_shares_received should be calculated based on current vault state
-      // For now, we'll use expected_shares * 1.1 (10% slippage tolerance)
-      const expectedSharesBigInt = BigInt(request.expected_shares);
-      const maxSharesReceived =
-        (expectedSharesBigInt * BigInt(110)) / BigInt(100); // 10% slippage
-
-      tx.moveCall({
-        target: `${VOLO_VAULT_PACKAGE_ID}::operation::execute_deposit`,
-        typeArguments: [coinType],
-        arguments: [
-          tx.object(VOLO_OPERATION_ID),
-          tx.object(operatorCap.objectId),
-          tx.object(vault.vault_id),
-          tx.object(vault.reward_manager_id),
-          tx.object(SUI_CLOCK_OBJECT_ID),
-          tx.object(VOLO_ORACLE_CONFIG_ID),
-          tx.pure.u64(request.request_id),
-          tx.pure.u256(maxSharesReceived.toString()),
-        ],
-      });
 
       signAndExecute(
         {
@@ -293,6 +497,9 @@ export function VaultDetail({ vault }: VaultDetailProps) {
         {
           onSuccess: async () => {
             setExecutingRequestId(null);
+            setPendingRequest(null);
+            setDryrunResult(null);
+            setCachedTransaction(null);
             addToast({
               title: "Success",
               description: "Deposit executed successfully",
@@ -305,6 +512,9 @@ export function VaultDetail({ vault }: VaultDetailProps) {
           },
           onError: (err) => {
             setExecutingRequestId(null);
+            setPendingRequest(null);
+            setDryrunResult(null);
+            setCachedTransaction(null);
             showTransactionErrorToast(
               err,
               tx,
@@ -317,14 +527,16 @@ export function VaultDetail({ vault }: VaultDetailProps) {
       );
     } catch (err) {
       setExecutingRequestId(null);
+      setPendingRequest(null);
+      setDryrunResult(null);
+      setCachedTransaction(null);
 
-      const errorMessage =
-        err instanceof Error ? err.message : parseTransactionError(err);
+      errorLog("Execute deposit hook error: %O", err);
 
-      errorLog("Execute deposit failed: %O", err);
       addToast({
-        title: "Transaction failed",
-        description: errorMessage,
+        title: "Execute deposit failed",
+        description:
+          err instanceof Error ? err.message : String(err ?? "Unknown error"),
         color: "danger",
       });
     }
@@ -422,14 +634,12 @@ export function VaultDetail({ vault }: VaultDetailProps) {
       );
     } catch (err) {
       setCancellingRequestId(null);
+      errorLog("Cancel deposit hook error: %O", err);
 
-      const errorMessage =
-        err instanceof Error ? err.message : parseTransactionError(err);
-
-      errorLog("Cancel deposit failed: %O", err);
       addToast({
-        title: "Transaction failed",
-        description: errorMessage,
+        title: "Cancel deposit failed",
+        description:
+          err instanceof Error ? err.message : String(err ?? "Unknown error"),
         color: "danger",
       });
     }
@@ -742,6 +952,193 @@ export function VaultDetail({ vault }: VaultDetailProps) {
           )}
         </CardBody>
       </Card>
+
+      {/* Execute Deposit Confirmation Dialog */}
+      <Modal
+        isOpen={confirmDialogOpen}
+        scrollBehavior="inside"
+        size="lg"
+        onClose={() => {
+          setConfirmDialogOpen(false);
+          setPendingRequest(null);
+          setDryrunResult(null);
+        }}
+      >
+        <ModalContent>
+          <ModalHeader>Confirm Deposit Execution</ModalHeader>
+          <ModalBody>
+            {pendingRequest && (
+              <div className="space-y-4">
+                <div>
+                  <p className="text-sm text-default-500">Request ID</p>
+                  <p className="font-mono text-sm">
+                    {pendingRequest.request_id}
+                  </p>
+                </div>
+
+                <div>
+                  <p className="text-sm text-default-500">Deposit Amount</p>
+                  <p className="font-medium">
+                    {formatAmount(Number(pendingRequest.amount))}{" "}
+                    {vault.coin_type?.split("::").pop() || ""}
+                  </p>
+                </div>
+
+                {dryrunResult?.isLoading ? (
+                  <div className="flex items-center gap-2 py-4">
+                    <Spinner size="sm" />
+                    <p className="text-sm text-default-500">
+                      Simulating transaction...
+                    </p>
+                  </div>
+                ) : dryrunResult?.error ? (
+                  <div className="space-y-2 rounded-lg bg-danger-50 p-3">
+                    <div>
+                      <p className="text-sm font-medium text-danger">
+                        Simulation failed
+                      </p>
+                      <p className="text-sm text-danger">
+                        {dryrunResult.error}
+                      </p>
+                    </div>
+                    {dryrunResult.errorCode && (
+                      <div>
+                        <p className="text-xs font-medium text-danger-700">
+                          Error Code: {dryrunResult.errorCode}
+                        </p>
+                        <p className="text-xs text-danger-600">
+                          {ALL_ERROR_CODES[dryrunResult.errorCode] ||
+                            "Unknown error code"}
+                        </p>
+                      </div>
+                    )}
+                    {dryrunResult.errorDetails &&
+                      dryrunResult.errorDetails !== dryrunResult.error && (
+                        <details className="mt-2">
+                          <summary className="cursor-pointer text-xs text-danger-700">
+                            Show full error details (for admin debugging)
+                          </summary>
+                          <pre className="mt-2 max-h-40 overflow-auto rounded bg-danger-100 p-2 text-xs text-danger-900">
+                            {dryrunResult.errorDetails}
+                          </pre>
+                        </details>
+                      )}
+                  </div>
+                ) : (
+                  <>
+                    <div>
+                      <p className="text-sm text-default-500">
+                        Oracle Price (from OracleConfig)
+                      </p>
+                      <p className="font-medium">
+                        {dryrunResult?.oraclePrice
+                          ? formatAmount(Number(dryrunResult.oraclePrice), 9)
+                          : "N/A"}
+                      </p>
+                    </div>
+
+                    <div>
+                      <p className="text-sm text-default-500">
+                        Expected Shares (from request)
+                      </p>
+                      <p className="font-mono text-sm">
+                        {formatExpectedShares(
+                          String(pendingRequest.expected_shares),
+                        )}
+                      </p>
+                    </div>
+
+                    {dryrunResult?.shares ? (
+                      <div>
+                        <p className="text-sm text-default-500">
+                          Simulated Shares (from dryrun)
+                        </p>
+                        <p className="font-mono text-sm font-medium">
+                          {formatExpectedShares(dryrunResult.shares)}
+                        </p>
+                      </div>
+                    ) : (
+                      <div>
+                        <p className="text-sm text-default-500">
+                          Simulated Shares (from dryrun)
+                        </p>
+                        <p className="text-sm text-default-400 italic">
+                          N/A (not available from simulation)
+                        </p>
+                      </div>
+                    )}
+                  </>
+                )}
+
+                <div className="border-t pt-4 space-y-2">
+                  <Checkbox
+                    isDisabled={true}
+                    isSelected={updateSwitchboardPrice}
+                    onValueChange={setUpdateSwitchboardPrice}
+                  >
+                    <div>
+                      <p className="text-sm font-medium">
+                        Update Switchboard Aggregator Prices
+                      </p>
+                      <p className="text-xs text-default-500">
+                        {/* TODO: Future implementation - When enabled, this will:
+                        1. Fetch all aggregator IDs from OracleConfig
+                        2. Use Switchboard SDK's fetchUpdateTx to get oracle updates
+                        3. Add aggregator_submit_result_action::run calls to transaction
+                        4. Re-run dryrun to update confirmation dialog with new results */}
+                        Future: Update Switchboard aggregator prices before
+                        execution
+                      </p>
+                    </div>
+                  </Checkbox>
+
+                  <Checkbox
+                    isDisabled={true}
+                    isSelected={updateOraclePrice}
+                    onValueChange={setUpdateOraclePrice}
+                  >
+                    <div>
+                      <p className="text-sm font-medium">
+                        Update OracleConfig Prices
+                      </p>
+                      <p className="text-xs text-default-500">
+                        {/* TODO: Future implementation - When enabled, this will:
+                        1. After Switchboard updates, call update_price for each asset type
+                        2. Re-run dryrun to update confirmation dialog with new results */}
+                        Future: Update OracleConfig prices from aggregators
+                      </p>
+                    </div>
+                  </Checkbox>
+                </div>
+              </div>
+            )}
+          </ModalBody>
+          <ModalFooter>
+            <Button
+              variant="light"
+              onPress={() => {
+                setConfirmDialogOpen(false);
+                setPendingRequest(null);
+                setDryrunResult(null);
+                setCachedTransaction(null);
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              color="primary"
+              isDisabled={
+                dryrunResult?.isLoading ||
+                !!dryrunResult?.error ||
+                !pendingRequest
+              }
+              onPress={handleConfirmExecute}
+            >
+              Confirm & Execute
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
     </section>
   );
 }

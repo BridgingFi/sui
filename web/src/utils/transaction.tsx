@@ -8,17 +8,20 @@ import { toBase64 } from "@mysten/sui/utils";
 import { ALL_ERROR_CODES } from "./errorCodes";
 
 /**
- * Extract error message from error object
+ * Extract error information from transaction build errors
+ * Specifically designed for errors with error.cause containing DryRunTransactionBlockResponse
+ * Note: This does NOT handle JsonRpcError from dryRunTransactionBlock failures
  * Priority: abortError.error_code -> status.error -> err.message
- * @param err - Error object
+ * @param err - Error object (typically from tx.build() with error.cause)
  * @returns Error code if found, error message otherwise
  */
-function extractErrorInfo(err: unknown): {
+export function extractTransactionErrorInfo(err: unknown): {
   errorCode?: number;
   errorMessage?: string;
 } {
   if (err instanceof Error) {
     // Try to extract from error.cause (dryRunResult structure from dryRunTransactionBlock)
+    // This only works for errors that have error.cause with DryRunTransactionBlockResponse
     if ("cause" in err && err.cause) {
       const cause = err.cause as DryRunTransactionBlockResponse;
 
@@ -89,7 +92,7 @@ export async function analyzeTransaction(
     return {};
   } catch (buildErr) {
     // Extract error information
-    const { errorCode, errorMessage } = extractErrorInfo(buildErr);
+    const { errorCode, errorMessage } = extractTransactionErrorInfo(buildErr);
 
     errorLog(
       "Transaction error: %o, error code: %o, cause: %o",

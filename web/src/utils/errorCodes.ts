@@ -84,36 +84,3 @@ export const ALL_ERROR_CODES: Record<number, string> = {
   ...REWARD_MANAGER_ERROR_CODES,
   ...USER_ENTRY_ERROR_CODES,
 };
-
-/**
- * Parse transaction error and return user-friendly message
- * @param err - Error object from transaction
- * @returns User-friendly error message
- */
-export function parseTransactionError(err: unknown): string {
-  if (!err) {
-    return String(err);
-  }
-
-  // Debug: Log error structure to understand actual format
-  // eslint-disable-next-line no-console
-  console.log("Transaction error:", err);
-
-  // TODO: Handle abortCode from Move contract errors
-  // According to Sui SDK ExecutionError structure:
-  // - For Move abort errors: errorDetails.oneofKind === 'abort' and errorDetails.abort.abortCode (bigint)
-  // - The error might be wrapped in Error object from useSignAndExecuteTransaction
-  // - Check errorObj.cause or errorObj.details for ExecutionError structure
-  // - abortCode is of type bigint in MoveAbort interface
-  // When abortCode is found, convert to number and use ALL_ERROR_CODES mapping
-
-  const { code, message: msg } = err as Record<string, unknown>;
-
-  // Check code first, then format with message if available
-  if (code != null) {
-    return msg ? `${msg} (code: ${code})` : `Error code: ${code}`;
-  }
-
-  // Fallback to message or string representation
-  return String(msg ?? err);
-}
