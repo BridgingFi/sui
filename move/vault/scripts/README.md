@@ -1,6 +1,6 @@
 # Vault Scripts
 
-Shell scripts for creating vaults and registering them to the vault registry.
+Shell scripts for managing vaults, executing operations, and querying vault state.
 
 ## Prerequisites
 
@@ -9,46 +9,53 @@ Shell scripts for creating vaults and registering them to the vault registry.
 
 ## Configuration
 
-Scripts automatically detect the network from your Sui CLI configuration. Set required environment variables:
+Scripts automatically detect the network from your Sui CLI configuration. Modify config.sh or set required environment variables as follows:
 
 ```bash
 export VAULT_PACKAGE_ID=0x...
 export VOLO_VAULT_PACKAGE_ID=0x...
+export VOLO_OPERATION_ID=0x...
+export VOLO_ORACLE_CONFIG_ID=0x...
 export ADMIN_CAP_ID=0x...
 export REGISTRY_ID=0x...  # Optional
 export COIN_TYPE=0x...::usdc::USDC  # Optional, defaults to testnet USDC
 ```
 
-## Scripts
+**Configuration File**: `config.sh` also provides network detection and unified error handling functions.
 
-### `create_registry.sh`
+**Usage**: All scripts should source `config.sh`:
 
-Creates a new vault registry.
+## Script List
 
-```bash
-./sh/create_registry.sh
-```
+### Registry Management Scripts
 
-### `create_vault.sh`
+| Script               | Function                                 |
+| -------------------- | ---------------------------------------- |
+| `create_registry.sh` | Create new Vault Registry                |
+| `create_vault.sh`    | Create new Volo Vault and Reward Manager |
+| `register_vault.sh`  | Register existing Vault to Registry      |
+| `query_registry.sh`  | Query Registry for registered Vaults     |
 
-Creates a vault and reward manager.
+### Operator Operation Scripts
 
-```bash
-./sh/create_vault.sh [COIN_TYPE]
-```
+| Script                   | Function                  |
+| ------------------------ | ------------------------- |
+| `query_operator_caps.sh` | Query OperatorCap objects |
+| `execute_deposit.sh`     | Execute deposit requests  |
+| `execute_withdraw.sh`    | Execute withdraw requests |
+| `cancel_deposit.sh`      | Cancel deposit requests   |
+| `cancel_withdraw.sh`     | Cancel withdraw requests  |
 
-### `register_vault.sh`
+### Query Scripts
 
-Registers an existing vault to the registry.
+| Script                    | Function                        |
+| ------------------------- | ------------------------------- |
+| `query_vault.sh`          | Query vault state               |
+| `query_vault_requests.sh` | Query deposit/withdraw requests |
+| `query_receipts.sh`       | Query user receipts             |
+| `query_receipt_info.sh`   | Query receipt details           |
 
-```bash
-./sh/register_vault.sh <VAULT_ID> <REWARD_MANAGER_ID> [COIN_TYPE]
-```
+## References
 
-### `query_registry.sh`
-
-Queries vault registry to view registered vaults.
-
-```bash
-./sh/query_registry.sh [REGISTRY_ID] [VAULT_ID]
-```
+- [regulated-coin-sample](https://github.com/MystenLabs/regulated-coin-sample) - Sui official example for JSON parsing patterns
+- [switchboard-xyz/sui](https://github.com/switchboard-xyz/sui/tree/main/on_demand/scripts) - Switchboard script implementation
