@@ -35,6 +35,7 @@ import { useState } from "react";
 import dayjs from "dayjs";
 
 import { CopyButton } from "@/components/common/CopyButton";
+import { VAULT_DECIMALS } from "@/lib/constants";
 import {
   useDepositRequests,
   useWithdrawRequests,
@@ -70,9 +71,8 @@ function formatExpectedShares(shares: string): string {
   try {
     const bigIntShares = BigInt(shares);
 
-    // Assuming shares use 9 decimals (same as DECIMALS in vault_utils)
-    const decimals = BigInt(1e9);
-    const value = Number(bigIntShares) / Number(decimals);
+    // Shares are pure numbers (no decimals), so no conversion needed
+    const value = Number(bigIntShares);
 
     return value.toFixed(6);
   } catch {
@@ -501,7 +501,7 @@ export function VaultDetail({ vault }: VaultDetailProps) {
       // Default shareRatioBefore to 1 * DECIMALS if not found
       // This matches Move logic: if total_shares == 0, return vault_utils::to_decimals(1)
       if (!shareRatioBefore) {
-        shareRatioBefore = String(1e9); // vault_utils::DECIMALS = 10^9
+        shareRatioBefore = String(VAULT_DECIMALS);
       }
 
       if (!actualShares) {
@@ -534,7 +534,6 @@ export function VaultDetail({ vault }: VaultDetailProps) {
       });
 
       // Step 4: Calculate values from events and simulate shares
-      const DECIMALS = BigInt(1e9); // vault_utils::DECIMALS = 10^9
 
       // Calculate USD value deposited from events
       let usdValueDeposited: string | null = null;
@@ -560,7 +559,7 @@ export function VaultDetail({ vault }: VaultDetailProps) {
         // Simulate: shares = div_d(usdValueDeposited, shareRatioBefore)
         // = usdValueDeposited * DECIMALS / shareRatioBefore
         simulatedShares = (
-          (usdValueDepositedBigInt * DECIMALS) /
+          (usdValueDepositedBigInt * VAULT_DECIMALS) /
           shareRatioBeforeBigInt
         ).toString();
 

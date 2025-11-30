@@ -14,11 +14,13 @@ import {
   TableRow,
 } from "@heroui/react";
 import { useCurrentAccount } from "@mysten/dapp-kit";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 
 import { DepositForm } from "@/components/vault/DepositForm";
-import { useReceiptDetailsBatch } from "@/hooks/useReceiptDetails";
+import { VAULT_DECIMALS } from "@/lib/constants";
+import { useReceiptsDetails } from "@/hooks/useReceiptDetails";
 import { useUserReceipts } from "@/hooks/useUserReceipts";
+import { useVaultInfo } from "@/hooks/useVaultInfo";
 
 // Helper function to get coin decimals
 function getCoinDecimals(coinType: string): number {
@@ -59,6 +61,28 @@ function formatShares(shares: string): string {
   }
 }
 
+function calculatePositionValue(
+  shares: string,
+  shareRatio: bigint | null,
+): string {
+  if (!shareRatio || shareRatio === 0n) {
+    return "N/A";
+  }
+
+  try {
+    const sharesBigInt = BigInt(shares);
+
+    // value = mul_d(shares, share_ratio) / DECIMALS = (shares * share_ratio) / DECIMALS / DECIMALS
+    // Use BigInt for precision, then convert to Number for display
+    const valueWithDecimals = (sharesBigInt * shareRatio) / VAULT_DECIMALS;
+    const valueNum = Number(valueWithDecimals) / Number(VAULT_DECIMALS);
+
+    return valueNum.toFixed(6);
+  } catch {
+    return "N/A";
+  }
+}
+
 // Get pending status label and amount
 function getPendingInfo(
   status: number,
@@ -91,6 +115,11 @@ interface UserPositionsProps {
   vault: VaultInfo;
 }
 
+interface ReceiptItem {
+  id: string;
+  vaultId: string;
+}
+
 /**
  * Component to display user's positions (receipts) for a vault
  */
@@ -105,11 +134,18 @@ export function UserPositions({ vault }: UserPositionsProps) {
     refetch: refetchReceipts,
   } = useUserReceipts(vault.vault_id);
 
+  // Get share ratio for calculating position values
+  const { shareRatio, isLoading: isLoadingShareRatio } = useVaultInfo(
+    vault.vault_id,
+  );
+
   // Query receipt details for all receipts
-  const receiptIds = receipts.map((r) => r.id);
-  const { detailsMap, isLoading: isLoadingDetails } = useReceiptDetailsBatch(
+  // Use useMemo to stabilize receiptIds array reference to avoid duplicate queries
+  const receiptIds = useMemo(() => receipts.map((r) => r.id), [receipts]);
+  const { detailsMap: receiptDetailsMap } = useReceiptsDetails(
     vault.vault_id,
     receiptIds,
+    vault.coin_type,
   );
 
   if (!currentAccount) {
@@ -134,22 +170,22 @@ export function UserPositions({ vault }: UserPositionsProps) {
         ) : (
           <Table aria-label="User positions">
             <TableHeader>
-              <TableColumn>Receipt ID</TableColumn>
-              <TableColumn>Shares</TableColumn>
-              <TableColumn>Action</TableColumn>
+              <TableColumn key="receiptId">Receipt ID</TableColumn>
+              <TableColumn key="shares">Shares</TableColumn>
+              <TableColumn key="value">Value</TableColumn>
+              <TableColumn key="action">Action</TableColumn>
             </TableHeader>
-            <TableBody>
-              {receipts.map((receipt) => {
-                const receiptDetails = detailsMap[receipt.id];
-                const isLoadingReceiptDetails =
-                  isLoadingDetails || receiptDetails === undefined;
+            <TableBody items={receipts}>
+              {(receipt: ReceiptItem) => {
+                const receiptDetails = receiptDetailsMap?.get(receipt.id);
 
                 // Get pending info from receipt details status
+                // Note: useReceiptsDetails returns fields with underscore naming
                 const pendingInfo = receiptDetails
                   ? getPendingInfo(
                       receiptDetails.status,
-                      receiptDetails.pendingDepositBalance,
-                      receiptDetails.pendingWithdrawShares,
+                      receiptDetails.pending_deposit_balance,
+                      receiptDetails.pending_withdraw_shares,
                       vault.coin_type,
                     )
                   : null;
@@ -157,7 +193,7 @@ export function UserPositions({ vault }: UserPositionsProps) {
                 const canDeposit = !isPending && receiptDetails?.status === 0; // NORMAL status
 
                 return (
-                  <TableRow key={receipt.id}>
+                  <TableRow>
                     <TableCell className="font-mono text-sm">
                       <div className="flex flex-col gap-1">
                         <span>
@@ -173,10 +209,20 @@ export function UserPositions({ vault }: UserPositionsProps) {
                       </div>
                     </TableCell>
                     <TableCell>
-                      {isLoadingReceiptDetails ? (
+                      {receiptDetails ? (
+                        formatShares(receiptDetails.shares)
+                      ) : (
+                        <Spinner size="sm" />
+                      )}
+                    </TableCell>
+                    <TableCell className="font-mono">
+                      {isLoadingShareRatio ? (
                         <Spinner size="sm" />
                       ) : receiptDetails ? (
-                        formatShares(receiptDetails.shares)
+                        calculatePositionValue(
+                          receiptDetails.shares,
+                          shareRatio,
+                        )
                       ) : (
                         <span className="text-default-400">N/A</span>
                       )}
@@ -199,7 +245,7 @@ export function UserPositions({ vault }: UserPositionsProps) {
                     </TableCell>
                   </TableRow>
                 );
-              })}
+              }}
             </TableBody>
           </Table>
         )}
@@ -208,7 +254,11 @@ export function UserPositions({ vault }: UserPositionsProps) {
       {/* Deposit Modal */}
       <DepositForm
         isOpen={depositModalReceiptId !== null}
-        receiptId={depositModalReceiptId}
+        receiptDetails={
+          depositModalReceiptId
+            ? (receiptDetailsMap.get(depositModalReceiptId) ?? null)
+            : null
+        }
         vault={vault}
         onClose={() => setDepositModalReceiptId(null)}
         onSuccess={() => {

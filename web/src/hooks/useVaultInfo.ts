@@ -1,12 +1,16 @@
 import { useSuiClientQuery, useSuiClient } from "@mysten/dapp-kit";
+import { Transaction } from "@mysten/sui/transactions";
 import { useQuery } from "@tanstack/react-query";
 
+import { loggers } from "@/utils/debug";
+
 const VOLO_VAULT_PACKAGE_ID = import.meta.env.VITE_VOLO_VAULT_PACKAGE_ID || "";
+const { errorLog } = loggers("app:hooks:useVaultInfo");
 
 /**
  * Hook to query vault information including deposit_fee_rate and share_ratio
  *
- * Only uses events to query share_ratio (no devInspectTransactionBlock).
+ * Uses get_share_ratio_without_update via devInspectTransactionBlock for real-time share ratio.
  * Share ratio is only used for display purposes, not for deposit calculations.
  *
  * @param vaultId - The vault object ID
@@ -44,6 +48,7 @@ export function useVaultInfo(vaultId: string | null) {
   let lockingTimeForWithdraw: number | null = null;
   let lockingTimeForCancelRequest: number | null = null;
   let assetTypes: string[] = [];
+  let coinType: string | null = null;
 
   if (vaultData?.data) {
     if ("content" in vaultData.data) {
@@ -103,6 +108,17 @@ export function useVaultInfo(vaultId: string | null) {
           assetTypes = assetTypesVec;
         }
 
+        // Extract coin type from vault type
+        if (vaultData.data.type) {
+          const typeStr = String(vaultData.data.type);
+          // Type format: 0x...::vault::Vault<0x...::coin_type::COIN_TYPE>
+          const match = typeStr.match(/<([^>]+)>/);
+
+          if (match && match[1]) {
+            coinType = match[1];
+          }
+        }
+
         // Extract Balance value
         if (freePrincipalBalance !== undefined) {
           if (
@@ -143,76 +159,64 @@ export function useVaultInfo(vaultId: string | null) {
     }
   }
 
-  // Query share_ratio from events only (for display purposes)
+  // Query share_ratio using get_share_ratio_without_update via devInspectTransactionBlock
   const {
     data: shareRatio,
     isLoading: isLoadingShareRatio,
     refetch: refetchShareRatio,
   } = useQuery({
-    queryKey: ["vault-share-ratio-events", vaultId],
+    queryKey: ["vault-share-ratio", vaultId, coinType],
     queryFn: async () => {
-      if (!vaultId || !VOLO_VAULT_PACKAGE_ID) {
+      if (!vaultId || !VOLO_VAULT_PACKAGE_ID || !coinType) {
         return null;
       }
 
       try {
-        const eventType = `${VOLO_VAULT_PACKAGE_ID}::vault::ShareRatioUpdated`;
+        const tx = new Transaction();
 
-        const events = await client.queryEvents({
-          query: {
-            MoveEventType: eventType,
-          },
-          limit: 1, // Get only the latest event
-          order: "descending",
+        tx.moveCall({
+          target: `${VOLO_VAULT_PACKAGE_ID}::vault::get_share_ratio_without_update`,
+          typeArguments: [coinType],
+          arguments: [tx.object(vaultId)],
         });
 
-        if (events.data && events.data.length > 0) {
-          // Find the latest event for this vault
-          for (const event of events.data) {
-            if (
-              event.parsedJson &&
-              typeof event.parsedJson === "object" &&
-              "vault_id" in event.parsedJson
-            ) {
-              const eventVaultId = String(event.parsedJson.vault_id);
-              const parsedJson = event.parsedJson as Record<string, unknown>;
+        const result = await client.devInspectTransactionBlock({
+          sender:
+            "0x0000000000000000000000000000000000000000000000000000000000000000",
+          transactionBlock: tx,
+        });
 
-              if (eventVaultId === vaultId) {
-                const shareRatioValue = parsedJson.share_ratio;
+        if (
+          result.results &&
+          result.results.length > 0 &&
+          result.results[0]?.returnValues &&
+          result.results[0].returnValues.length > 0
+        ) {
+          const returnValue = result.results[0].returnValues[0];
 
-                if (shareRatioValue !== undefined) {
-                  // Convert to BigInt
-                  if (typeof shareRatioValue === "string") {
-                    return BigInt(shareRatioValue);
-                  }
+          if (returnValue && Array.isArray(returnValue[0])) {
+            const valueBytes = returnValue[0];
 
-                  if (typeof shareRatioValue === "number") {
-                    return BigInt(shareRatioValue);
-                  }
+            // Convert bytes array to BigInt (u256)
+            let value = 0n;
 
-                  if (Array.isArray(shareRatioValue)) {
-                    let value = 0n;
-
-                    for (let i = shareRatioValue.length - 1; i >= 0; i--) {
-                      value = value * 256n + BigInt(shareRatioValue[i] || 0);
-                    }
-
-                    return value;
-                  }
-                }
-              }
+            for (let i = valueBytes.length - 1; i >= 0; i--) {
+              value = value * 256n + BigInt(valueBytes[i] || 0);
             }
+
+            return value;
           }
         }
-
-        return null;
-      } catch {
-        return null;
+      } catch (error) {
+        errorLog("Failed to get share ratio: %O", error);
       }
+
+      // Return null on error, let caller handle the error state
+      return null;
     },
-    enabled: !!vaultId && !!VOLO_VAULT_PACKAGE_ID,
-    refetchInterval: 60000, // Refetch every 60 seconds
-    staleTime: 30000, // Consider stale after 30 seconds
+    enabled: !!vaultId && !!VOLO_VAULT_PACKAGE_ID && !!coinType,
+    refetchInterval: 30000, // Refetch every 30 seconds
+    staleTime: 15000, // Consider stale after 15 seconds
   });
 
   return {

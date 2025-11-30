@@ -17,10 +17,12 @@ import {
   TableRow,
   Tooltip,
 } from "@heroui/react";
+import { WarningTriangle } from "iconoir-react";
 
 import { CopyButton } from "@/components/common/CopyButton";
 import { DepositForm } from "@/components/vault/DepositForm";
 import { UserPositions } from "@/components/vault/UserPositions";
+import { VAULT_DECIMALS } from "@/lib/constants";
 import { useUserReceipts } from "@/hooks/useUserReceipts";
 import { useVaultInfo } from "@/hooks/useVaultInfo";
 import { useVaultShareRatioHistoryGraphQL } from "@/hooks/useVaultShareRatioHistoryGraphQL";
@@ -48,6 +50,7 @@ export function VaultDetail({ vault }: VaultDetailProps) {
     withdrawFeeRate,
     lockingTimeForWithdraw,
     lockingTimeForCancelRequest,
+    shareRatio,
     isLoading: isLoadingVaultInfo,
   } = useVaultInfo(vault.vault_id);
 
@@ -84,15 +87,22 @@ export function VaultDetail({ vault }: VaultDetailProps) {
   // Format share price for display (divide share_ratio by DECIMALS)
   // share_price = share_ratio / DECIMALS = total_usd_value / total_shares
   const formatSharePrice = (ratio: bigint | null): string => {
-    if (ratio === null || ratio === 0n) {
+    if (ratio === null) {
       return "N/A";
     }
 
-    const decimals = BigInt(1e9); // vault_utils::DECIMALS = 1_000_000_000
-    const priceValue = Number(ratio) / Number(decimals);
+    if (ratio === 0n) {
+      return "0.000000";
+    }
+
+    const priceValue = Number(ratio) / Number(VAULT_DECIMALS);
 
     return priceValue.toFixed(6);
   };
+
+  // Get latest share price from useVaultInfo (get_share_ratio_without_update)
+  // If shareRatio is null, it means the call failed - show error state
+  const latestSharePrice = formatSharePrice(shareRatio);
 
   // Format locking time from milliseconds to human readable format
   const formatLockingTime = (ms: number | null): string => {
@@ -222,11 +232,20 @@ export function VaultDetail({ vault }: VaultDetailProps) {
           />
         </div>
 
-        {/* Share Price History - Left column on desktop, Order 2 on mobile */}
+        {/* Share Price - Left column on desktop, Order 2 on mobile */}
         <div className="lg:order-1">
           <Card>
-            <CardHeader>Share Price History</CardHeader>
+            <CardHeader>Share Price</CardHeader>
             <CardBody>
+              <span className="text-2xl">
+                {isLoadingVaultInfo ? (
+                  <Spinner size="sm" variant="wave" />
+                ) : shareRatio === null ? (
+                  <WarningTriangle />
+                ) : (
+                  latestSharePrice
+                )}
+              </span>
               {isLoadingHistory ? (
                 <div className="flex items-center justify-center py-8">
                   <Spinner size="lg" />

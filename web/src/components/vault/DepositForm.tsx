@@ -1,4 +1,5 @@
 import type { VaultInfo } from "@/lib/types";
+import type { ReceiptDetails } from "@/hooks/useReceiptDetails";
 
 import {
   Button,
@@ -22,7 +23,6 @@ import { SUI_CLOCK_OBJECT_ID, MOVE_STDLIB_ADDRESS } from "@mysten/sui/utils";
 import { useState } from "react";
 
 import { useCoinBalance } from "@/hooks/useCoinBalance";
-import { useReceiptDetails } from "@/hooks/useReceiptDetails";
 import { useVaultInfo } from "@/hooks/useVaultInfo";
 import { WalletConnectButtonWithModal } from "@/components/wallet/WalletConnectButtonWithModal";
 import { loggers } from "@/utils/debug";
@@ -48,7 +48,7 @@ function getCoinDecimals(coinType: string): number {
 
 interface DepositFormProps {
   vault: VaultInfo;
-  receiptId?: string | null; // Optional receipt ID for existing receipt deposit
+  receiptDetails?: ReceiptDetails | null; // Optional receipt details (if already fetched)
   isOpen?: boolean; // Whether modal is open (for modal mode)
   onClose?: () => void; // Callback when modal closes
   onSuccess?: () => void; // Callback when deposit succeeds
@@ -62,7 +62,7 @@ interface DepositFormProps {
  */
 export function DepositForm({
   vault,
-  receiptId: propReceiptId = null,
+  receiptDetails: propReceiptDetails = null,
   isOpen,
   onClose,
   onSuccess,
@@ -82,21 +82,17 @@ export function DepositForm({
     isLoading: isLoadingBalance,
   } = useCoinBalance(coinType);
 
-  // Query receipt details if receiptId is provided
-  const { details: receiptDetails } = useReceiptDetails(
-    vault.vault_id,
-    propReceiptId,
-  );
-
   useVaultInfo(vault.vault_id); // Query vault info for potential future use
 
   const [amount, setAmount] = useState("");
   const [error, setError] = useState<string | null>(null);
 
-  const hasReceipt = propReceiptId !== null;
+  const receiptDetails = propReceiptDetails;
+  const hasReceipt = receiptDetails !== null;
+  const receiptId = receiptDetails?.receiptId ?? null;
   const hasPendingDeposit = receiptDetails?.status === 1; // PENDING_DEPOSIT
 
-  // Reset form when modal closes or receiptId changes
+  // Reset form when modal closes
   const handleClose = () => {
     setAmount("");
     setError(null);
@@ -184,12 +180,12 @@ export function DepositForm({
       // The return value of moveCall can be directly used as an argument
       let optionReceipt;
 
-      if (hasReceipt && propReceiptId) {
+      if (hasReceipt && receiptId) {
         // Call option::some(receipt) to wrap receipt in Option
         optionReceipt = tx.moveCall({
           target: `${MOVE_STDLIB_ADDRESS}::option::some`,
           typeArguments: [`${voloPackageId}::receipt::Receipt`],
-          arguments: [tx.object(propReceiptId)],
+          arguments: [tx.object(receiptId)],
         });
       } else {
         // Call option::none() to create Option::none
@@ -338,11 +334,11 @@ export function DepositForm({
       </div>
 
       {/* Receipt Info (if depositing to existing receipt) */}
-      {hasReceipt && propReceiptId && (
+      {hasReceipt && receiptId && (
         <div className="rounded-lg bg-default-100 p-3">
           <p className="text-xs text-default-500 mb-1">Receipt ID</p>
           <p className="font-mono text-sm">
-            {propReceiptId.slice(0, 8)}...{propReceiptId.slice(-6)}
+            {receiptId.slice(0, 8)}...{receiptId.slice(-6)}
           </p>
           {hasPendingDeposit && (
             <p className="text-xs text-warning mt-2">

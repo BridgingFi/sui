@@ -1,326 +1,210 @@
-import { useSuiClient } from "@mysten/dapp-kit";
-import { useQuery } from "@tanstack/react-query";
+import { useSuiClientQueries } from "@mysten/dapp-kit";
+import { bcs } from "@mysten/sui/bcs";
+import { Transaction } from "@mysten/sui/transactions";
+import { useMemo } from "react";
+
+import { loggers } from "@/utils/debug";
 
 const VOLO_VAULT_PACKAGE_ID = import.meta.env.VITE_VOLO_VAULT_PACKAGE_ID || "";
+const { errorLog } = loggers("app:hooks:useReceiptDetails");
 
 export interface ReceiptDetails {
   receiptId: string;
   vaultId: string;
   status: number; // 0: normal, 1: pending_deposit, 2: pending_withdraw, 3: pending_withdraw_with_auto_transfer
   shares: string;
-  pendingDepositBalance: string;
-  pendingWithdrawShares: string;
-  claimablePrincipal: string;
-  lastDepositTime: number;
+  pending_deposit_balance: string;
+  pending_withdraw_shares: string;
+  claimable_principal: string;
+  last_deposit_time: number;
+  reward_indices: string; // Table stored as object ID
+  unclaimed_rewards: string; // Table stored as object ID
 }
 
 /**
- * Hook to query and cache receipts table ID for a vault
- * The receipts table ID is fixed once the vault is created, so it can be cached
+ * Hook to query receipt details directly using vault_receipt_info view function
+ * More efficient than querying dynamic fields
+ * Internally uses useReceiptsDetails for code reuse
  *
  * @param vaultId - The vault object ID
- */
-function useReceiptsTableId(vaultId: string | null) {
-  const client = useSuiClient();
-
-  const {
-    data: receiptsTableId,
-    isLoading,
-    error,
-  } = useQuery({
-    queryKey: ["receipts-table-id", vaultId],
-    queryFn: async (): Promise<string | null> => {
-      if (!vaultId) {
-        return null;
-      }
-
-      try {
-        const vaultData = await client.getObject({
-          id: vaultId,
-          options: {
-            showContent: true,
-          },
-        });
-
-        if (
-          !vaultData.data ||
-          !("content" in vaultData.data) ||
-          !vaultData.data.content ||
-          vaultData.data.content.dataType !== "moveObject" ||
-          !("fields" in vaultData.data.content)
-        ) {
-          return null;
-        }
-
-        const vaultFields = vaultData.data.content.fields as Record<
-          string,
-          unknown
-        >;
-
-        // Extract receipts table ID from vault object
-        // Structure: vault.fields.receipts.fields.id.id
-        const receiptsTable = vaultFields.receipts as Record<string, unknown>;
-
-        if (!receiptsTable || typeof receiptsTable !== "object") {
-          return null;
-        }
-
-        const receiptsTableFields = (receiptsTable as Record<string, unknown>)
-          .fields as Record<string, unknown>;
-
-        if (!receiptsTableFields || typeof receiptsTableFields !== "object") {
-          return null;
-        }
-
-        const receiptsTableIdObj = receiptsTableFields.id as Record<
-          string,
-          unknown
-        >;
-
-        if (!receiptsTableIdObj || typeof receiptsTableIdObj !== "object") {
-          return null;
-        }
-
-        const tableId = receiptsTableIdObj.id as string;
-
-        return tableId || null;
-      } catch {
-        return null;
-      }
-    },
-    enabled: !!vaultId,
-    staleTime: Infinity, // Table ID never changes, cache forever
-    gcTime: Infinity, // Keep in cache forever
-  });
-
-  return {
-    receiptsTableId: receiptsTableId || null,
-    isLoading,
-    error,
-  };
-}
-
-/**
- * Hook to query receipt details from vault's receipts table
- * Queries VaultReceiptInfo for a specific receipt
- *
- * @param vaultId - The vault object ID
- * @param receiptId - The receipt object ID
+ * @param receiptId - The receipt object ID (address)
+ * @param coinType - The coin type for the vault
  */
 export function useReceiptDetails(
   vaultId: string | null,
   receiptId: string | null,
+  coinType: string | null,
 ) {
-  const client = useSuiClient();
-  const {
-    receiptsTableId,
-    isLoading: isLoadingTableId,
-    error: tableIdError,
-  } = useReceiptsTableId(vaultId);
+  // Use batch query with single receipt ID
+  const { detailsMap, isLoading, error, refetch } = useReceiptsDetails(
+    vaultId,
+    receiptId ? [receiptId] : [],
+    coinType,
+  );
 
-  const {
-    data: details,
-    isLoading: isLoadingDetails,
-    error: detailsError,
-    refetch,
-  } = useQuery({
-    queryKey: ["receipt-details", vaultId, receiptId],
-    queryFn: async (): Promise<ReceiptDetails | null> => {
-      // receiptsTableId is guaranteed to be non-null here because enabled check
-      // But TypeScript doesn't know that, so we use non-null assertion
-      if (!receiptsTableId) {
-        return null;
-      }
+  // Extract single receipt details from map
+  const details = useMemo(() => {
+    if (!receiptId) {
+      return null;
+    }
 
-      try {
-        // Query dynamic field from receipts table
-        // The dynamic field structure is: { name: address, value: VaultReceiptInfo }
-        const dynamicField = await client.getDynamicFieldObject({
-          parentId: receiptsTableId,
-          name: {
-            type: "address",
-            value: receiptId,
-          },
-        });
-
-        if (
-          !dynamicField.data ||
-          !("content" in dynamicField.data) ||
-          !dynamicField.data.content ||
-          dynamicField.data.content.dataType !== "moveObject" ||
-          !("fields" in dynamicField.data.content)
-        ) {
-          return null;
-        }
-
-        const dynamicFields = dynamicField.data.content.fields as Record<
-          string,
-          unknown
-        >;
-
-        // Extract VaultReceiptInfo from value.fields
-        // The dynamic field structure is: { name: address, value: VaultReceiptInfo }
-        const valueFields =
-          ((dynamicFields.value as Record<string, unknown>)?.fields as Record<
-            string,
-            unknown
-          >) || dynamicFields;
-
-        // Parse VaultReceiptInfo fields
-        const status = Number(valueFields.status || 0);
-        const shares = String(valueFields.shares || "0");
-        const pendingDepositBalance = String(
-          valueFields.pending_deposit_balance || "0",
-        );
-        const pendingWithdrawShares = String(
-          valueFields.pending_withdraw_shares || "0",
-        );
-        const claimablePrincipal = String(
-          valueFields.claimable_principal || "0",
-        );
-        const lastDepositTime = Number(valueFields.last_deposit_time || 0);
-
-        return {
-          receiptId: receiptId!,
-          vaultId: vaultId!,
-          status,
-          shares,
-          pendingDepositBalance,
-          pendingWithdrawShares,
-          claimablePrincipal,
-          lastDepositTime,
-        };
-      } catch {
-        return null;
-      }
-    },
-    enabled:
-      !!vaultId && !!receiptId && !!VOLO_VAULT_PACKAGE_ID && !!receiptsTableId,
-    refetchInterval: 30000, // Refetch every 30 seconds
-  });
+    return detailsMap.get(receiptId) ?? null;
+  }, [detailsMap, receiptId]);
 
   return {
-    details: details || null,
-    isLoading: isLoadingTableId || isLoadingDetails,
-    error: tableIdError || detailsError,
+    details,
+    isLoading,
+    error,
     refetch,
   };
 }
 
 /**
- * Hook to query all receipt details for a vault
- * Queries multiple receipts at once
+ * Hook to query receipt details for multiple receipts using useSuiClientQueries
+ * Returns a map of receipt ID to details for efficient lookup
  *
  * @param vaultId - The vault object ID
  * @param receiptIds - Array of receipt object IDs
+ * @param coinType - The coin type for the vault
  */
-export function useReceiptDetailsBatch(
+export function useReceiptsDetails(
   vaultId: string | null,
   receiptIds: string[],
+  coinType: string | null,
 ) {
-  const client = useSuiClient();
-  const {
-    receiptsTableId,
-    isLoading: isLoadingTableId,
-    error: tableIdError,
-  } = useReceiptsTableId(vaultId);
+  // Build transaction objects for each receipt
+  const transactions = useMemo(() => {
+    if (!vaultId || !coinType || receiptIds.length === 0) {
+      return [];
+    }
 
-  const {
-    data: detailsMap,
-    isLoading: isLoadingDetails,
-    error: detailsError,
-    refetch,
-  } = useQuery({
-    queryKey: ["receipt-details-batch", vaultId, receiptIds.join(",")],
-    queryFn: async (): Promise<Record<string, ReceiptDetails | null>> => {
-      // receiptsTableId is guaranteed to be non-null here because enabled check
-      if (!receiptsTableId) {
-        return {};
-      }
+    return receiptIds.map((receiptId) => {
+      const tx = new Transaction();
 
-      const result: Record<string, ReceiptDetails | null> = {};
+      tx.moveCall({
+        target: `${VOLO_VAULT_PACKAGE_ID}::vault::vault_receipt_info`,
+        typeArguments: [coinType],
+        arguments: [tx.object(vaultId), tx.pure.address(receiptId)],
+      });
 
-      // Query all receipts in parallel using cached receipts table ID
-      await Promise.all(
-        receiptIds.map(async (receiptId) => {
-          try {
-            // Use dynamic field API to query receipt info from receipts table
-            // The receipts table stores VaultReceiptInfo by receipt_id
-            const dynamicField = await client.getDynamicFieldObject({
-              parentId: receiptsTableId!,
-              name: {
-                type: "address",
-                value: receiptId,
-              },
-            });
+      return tx;
+    });
+  }, [vaultId, receiptIds, coinType]);
 
-            if (
-              dynamicField.data &&
-              "content" in dynamicField.data &&
-              dynamicField.data.content &&
-              dynamicField.data.content.dataType === "moveObject" &&
-              "fields" in dynamicField.data.content
-            ) {
-              const dynamicFields = dynamicField.data.content.fields as Record<
-                string,
-                unknown
-              >;
+  // Batch query all receipt details
+  // Use stable queryKey based on vaultId and receiptId to avoid duplicate queries
+  const results = useSuiClientQueries({
+    queries: transactions.map((tx, index) => {
+      const receiptId = receiptIds[index];
 
-              // Extract VaultReceiptInfo from value.fields
-              // The dynamic field structure is: { name: address, value: VaultReceiptInfo }
-              const valueFields =
-                ((dynamicFields.value as Record<string, unknown>)
-                  ?.fields as Record<string, unknown>) || dynamicFields;
-
-              // Parse VaultReceiptInfo fields
-              const status = Number(valueFields.status || 0);
-              const shares = String(valueFields.shares || "0");
-              const pendingDepositBalance = String(
-                valueFields.pending_deposit_balance || "0",
-              );
-              const pendingWithdrawShares = String(
-                valueFields.pending_withdraw_shares || "0",
-              );
-              const claimablePrincipal = String(
-                valueFields.claimable_principal || "0",
-              );
-              const lastDepositTime = Number(
-                valueFields.last_deposit_time || 0,
-              );
-
-              result[receiptId] = {
-                receiptId: receiptId!,
-                vaultId: vaultId!,
-                status,
-                shares,
-                pendingDepositBalance,
-                pendingWithdrawShares,
-                claimablePrincipal,
-                lastDepositTime,
-              };
-            } else {
-              result[receiptId] = null;
-            }
-          } catch {
-            result[receiptId] = null;
-          }
-        }),
-      );
-
-      return result;
-    },
-    enabled:
-      !!vaultId &&
-      receiptIds.length > 0 &&
-      !!VOLO_VAULT_PACKAGE_ID &&
-      !!receiptsTableId,
-    refetchInterval: 30000,
+      return {
+        method: "devInspectTransactionBlock" as const,
+        params: {
+          sender:
+            "0x0000000000000000000000000000000000000000000000000000000000000000",
+          transactionBlock: tx,
+        },
+        options: {
+          // Use stable queryKey based on vaultId and receiptId instead of Transaction object
+          // This prevents duplicate queries when Transaction objects are recreated on re-render
+          queryKey: ["vault_receipt_info", vaultId, receiptId, coinType],
+          enabled:
+            !!vaultId && !!receiptId && !!VOLO_VAULT_PACKAGE_ID && !!coinType,
+          refetchInterval: 10000,
+          staleTime: 5000,
+        },
+      };
+    }),
   });
 
+  // Parse results and create a map
+  const detailsMap = useMemo(() => {
+    const map = new Map<
+      string,
+      {
+        status: number;
+        shares: string;
+        pending_deposit_balance: string;
+        pending_withdraw_shares: string;
+        last_deposit_time: number;
+        claimable_principal: string;
+        reward_indices: string;
+        unclaimed_rewards: string;
+        receiptId: string;
+        vaultId: string;
+      }
+    >();
+
+    results.forEach((result, index) => {
+      const receiptId = receiptIds[index];
+
+      if (!receiptId || !result.data) {
+        return;
+      }
+
+      const data = result.data;
+
+      if (
+        !data.results ||
+        data.results.length === 0 ||
+        !data.results[0]?.returnValues ||
+        data.results[0].returnValues.length === 0
+      ) {
+        return;
+      }
+
+      const returnValue = data.results[0].returnValues[0];
+
+      if (!returnValue || !Array.isArray(returnValue[0])) {
+        return;
+      }
+
+      // Parse VaultReceiptInfo struct using BCS
+      const valueBytes = new Uint8Array(returnValue[0] as number[]);
+
+      const VaultReceiptInfo = bcs.struct("VaultReceiptInfo", {
+        status: bcs.u8(),
+        shares: bcs.u256(),
+        pending_deposit_balance: bcs.u64(),
+        pending_withdraw_shares: bcs.u256(),
+        last_deposit_time: bcs.u64(),
+        claimable_principal: bcs.u64(),
+        reward_indices: bcs.Address,
+        unclaimed_rewards: bcs.Address,
+      });
+
+      try {
+        const parsed = VaultReceiptInfo.parse(valueBytes);
+
+        map.set(receiptId, {
+          ...parsed,
+          last_deposit_time: Number(parsed.last_deposit_time),
+          receiptId,
+          vaultId: vaultId!,
+        });
+      } catch (parseError) {
+        errorLog(
+          "Failed to parse VaultReceiptInfo with BCS for receipt %s: %O",
+          receiptId,
+          parseError,
+        );
+      }
+    });
+
+    return map;
+  }, [results, receiptIds, vaultId]);
+
+  const isLoading = results.some((result) => result.isLoading);
+  const error = results.find((result) => result.error)?.error;
+
   return {
-    detailsMap: detailsMap || {},
-    isLoading: isLoadingTableId || isLoadingDetails,
-    error: tableIdError || detailsError,
-    refetch,
+    detailsMap,
+    isLoading,
+    error,
+    refetch: () => {
+      results.forEach((result) => {
+        result.refetch();
+      });
+    },
   };
 }
