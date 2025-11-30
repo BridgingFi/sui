@@ -824,9 +824,7 @@ export function VaultDetail({ vault }: VaultDetailProps) {
 
       {/* Vault Information */}
       <Card>
-        <CardHeader>
-          <h2 className="text-lg font-medium">Vault Information</h2>
-        </CardHeader>
+        <CardHeader>Vault Information</CardHeader>
         <CardBody className="space-y-4">
           {isLoadingVaultInfo ? (
             <div className="flex items-center gap-2">
@@ -859,9 +857,7 @@ export function VaultDetail({ vault }: VaultDetailProps) {
       {/* Assets Value Information */}
       {assetTypes && assetTypes.length > 0 && (
         <Card>
-          <CardHeader>
-            <h2 className="text-lg font-medium">Assets Value</h2>
-          </CardHeader>
+          <CardHeader>Assets Value</CardHeader>
           <CardBody>
             {isLoadingAssets ? (
               <div className="flex items-center gap-2">
@@ -911,7 +907,7 @@ export function VaultDetail({ vault }: VaultDetailProps) {
       {/* Deposit Requests */}
       <Card>
         <CardHeader>
-          <h2 className="text-lg font-medium">Deposit Requests</h2>
+          Deposit Requests
           <span className="text-sm text-default-500 ml-auto">
             {depositRequests.length} requests
             {depositCursor && " (page)"}
@@ -1031,7 +1027,7 @@ export function VaultDetail({ vault }: VaultDetailProps) {
       {/* Withdraw Requests */}
       <Card>
         <CardHeader>
-          <h2 className="text-lg font-medium">Withdraw Requests</h2>
+          Withdraw Requests
           <span className="text-sm text-default-500 ml-auto">
             {withdrawRequests.length} requests
             {withdrawCursor && " (page)"}

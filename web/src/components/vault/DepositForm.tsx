@@ -420,9 +420,7 @@ export function DepositForm({
   // If used as standalone card
   return (
     <Card>
-      <CardHeader>
-        <h2 className="text-lg font-medium">{formTitle}</h2>
-      </CardHeader>
+      <CardHeader>{formTitle}</CardHeader>
       <CardBody>{formContent}</CardBody>
     </Card>
   );

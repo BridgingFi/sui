@@ -87,9 +87,7 @@ export function VaultList() {
   if (vaults.length === 0) {
     return (
       <Card>
-        <CardHeader>
-          <h2 className="text-lg font-medium">Registered Vaults</h2>
-        </CardHeader>
+        <CardHeader>Registered Vaults</CardHeader>
         <CardBody>
           <p className="text-default-500">No vaults registered yet.</p>
         </CardBody>
@@ -100,7 +98,7 @@ export function VaultList() {
   return (
     <Card>
       <CardHeader>
-        <h2 className="text-lg font-medium">Registered Vaults</h2>
+        Registered Vaults
         <span className="text-sm text-default-500 ml-auto">
           {vaults.length} {vaults.length === 1 ? "vault" : "vaults"}
         </span>

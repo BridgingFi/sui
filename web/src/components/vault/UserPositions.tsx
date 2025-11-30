@@ -119,7 +119,7 @@ export function UserPositions({ vault }: UserPositionsProps) {
   return (
     <Card>
       <CardHeader>
-        <h2 className="text-lg font-medium">Your Positions</h2>
+        Your Positions
         {isLoadingReceipts && <Spinner className="ml-auto" size="sm" />}
       </CardHeader>
       <CardBody>

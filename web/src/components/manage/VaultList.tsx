@@ -163,22 +163,20 @@ export function VaultList({
 
       <Card>
         <CardHeader>
-          <h2 className="text-lg font-medium">Registered Vaults</h2>
-          <div className="flex items-center gap-4 ml-auto">
-            <span className="text-sm text-default-500">
-              {vaultsList.length} {vaultsList.length === 1 ? "vault" : "vaults"}
-            </span>
-            <Button
-              isIconOnly
-              aria-label="Refresh vault list"
-              isLoading={isFetchingRegistry}
-              size="sm"
-              variant="light"
-              onPress={refresh}
-            >
-              <Refresh className="w-4 h-4" />
-            </Button>
-          </div>
+          Registered Vaults
+          <span className="text-sm text-default-500 ml-auto">
+            {vaultsList.length} {vaultsList.length === 1 ? "vault" : "vaults"}
+          </span>
+          <Button
+            isIconOnly
+            aria-label="Refresh vault list"
+            isLoading={isFetchingRegistry}
+            size="sm"
+            variant="light"
+            onPress={refresh}
+          >
+            <Refresh className="w-4 h-4" />
+          </Button>
         </CardHeader>
         <CardBody>
           <Table aria-label="Vault list">

@@ -1,6 +1,6 @@
 import type { OracleConfig, PriceInfo } from "@/lib/types";
 
-import { useSuiClientQuery, useSuiClient } from "@mysten/dapp-kit";
+import { useSuiClientQuery } from "@mysten/dapp-kit";
 import { useMemo } from "react";
 
 import { loggers } from "@/utils/debug";
@@ -14,8 +14,6 @@ const VOLO_ORACLE_CONFIG_ID = import.meta.env.VITE_VOLO_ORACLE_CONFIG_ID || "";
  * Returns OracleConfig with all configured aggregators
  */
 export function useOracleConfig() {
-  const client = useSuiClient();
-
   // Step 1: Query OracleConfig object
   const {
     data: oracleConfigData,

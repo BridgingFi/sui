@@ -156,65 +156,58 @@ export function VaultDetail({ vault }: VaultDetailProps) {
 
       {/* Vault Information - Full width */}
       <Card>
-        <CardHeader>
-          <h2 className="text-lg font-medium">Vault Information</h2>
-        </CardHeader>
-        <CardBody className="space-y-4">
+        <CardHeader>Vault Information</CardHeader>
+        <CardBody>
           {/* Vault Metrics */}
-          <div className="pt-4 border-t border-default-200">
-            <p className="text-sm font-medium mb-3">Vault Metrics</p>
-            {isLoadingVaultInfo ? (
-              <div className="flex items-center gap-2">
-                <Spinner size="sm" />
-                <span className="text-sm text-default-500">Loading...</span>
+          {isLoadingVaultInfo ? (
+            <div className="flex items-center gap-2">
+              <Spinner size="sm" />
+              <span className="text-sm text-default-500">Loading...</span>
+            </div>
+          ) : (
+            <div className="space-y-1">
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-default-500">
+                  Deposit Fee Rate
+                </span>
+                <span className="text-sm font-medium">
+                  {depositFeeRate !== null ? `${depositFeeRate / 100}%` : "N/A"}
+                </span>
               </div>
-            ) : (
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-default-500">
-                    Deposit Fee Rate
-                  </span>
-                  <span className="text-sm font-medium">
-                    {depositFeeRate !== null
-                      ? `${depositFeeRate / 100}%`
-                      : "N/A"}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-default-500">
-                    Withdraw Fee Rate
-                  </span>
-                  <span className="text-sm font-medium">
-                    {withdrawFeeRate !== null
-                      ? `${withdrawFeeRate / 100}%`
-                      : "N/A"}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-default-500">Total Shares</span>
-                  <span className="text-sm font-medium font-mono">
-                    {totalShares !== null ? totalShares.toString() : "N/A"}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-default-500">
-                    Locking Time for Withdraw
-                  </span>
-                  <span className="text-sm font-medium">
-                    {formatLockingTime(lockingTimeForWithdraw)}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-default-500">
-                    Locking Time for Cancel Request
-                  </span>
-                  <span className="text-sm font-medium">
-                    {formatLockingTime(lockingTimeForCancelRequest)}
-                  </span>
-                </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-default-500">
+                  Withdraw Fee Rate
+                </span>
+                <span className="text-sm font-medium">
+                  {withdrawFeeRate !== null
+                    ? `${withdrawFeeRate / 100}%`
+                    : "N/A"}
+                </span>
               </div>
-            )}
-          </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-default-500">Total Shares</span>
+                <span className="text-sm font-medium font-mono">
+                  {totalShares !== null ? totalShares.toString() : "N/A"}
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-default-500">
+                  Locking Time for Withdraw
+                </span>
+                <span className="text-sm font-medium">
+                  {formatLockingTime(lockingTimeForWithdraw)}
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-default-500">
+                  Locking Time for Cancel Request
+                </span>
+                <span className="text-sm font-medium">
+                  {formatLockingTime(lockingTimeForCancelRequest)}
+                </span>
+              </div>
+            </div>
+          )}
         </CardBody>
       </Card>
 
@@ -232,9 +225,7 @@ export function VaultDetail({ vault }: VaultDetailProps) {
         {/* Share Price History - Left column on desktop, Order 2 on mobile */}
         <div className="lg:order-1">
           <Card>
-            <CardHeader>
-              <h2 className="text-lg font-medium">Share Price History</h2>
-            </CardHeader>
+            <CardHeader>Share Price History</CardHeader>
             <CardBody>
               {isLoadingHistory ? (
                 <div className="flex items-center justify-center py-8">
