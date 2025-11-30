@@ -69,12 +69,6 @@ pnpm install
 pnpm dev
 ```
 
-## Documentation
-
-- **Technical Design**: [`docs/technical-design.md`](docs/technical-design.md) - Move contract design
-- **Frontend Architecture**: [`docs/frontend-architecture.md`](docs/frontend-architecture.md) - Frontend design patterns
-- **Permissions**: [`docs/permissions.md`](docs/permissions.md) - Permission system requirements
-
 ## Details of Contracts and Frontend
 
 ### Move Contracts

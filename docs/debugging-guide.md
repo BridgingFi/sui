@@ -1,6 +1,6 @@
 # Transaction Debugging Guide
 
-**Last Updated**: 2025-01-XX
+**Last Updated**: 2025-11-28
 
 ## Background
 

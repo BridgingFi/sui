@@ -1,7 +1,7 @@
 ## Core Design Documents
 
 - **[technical-design.md](./technical-design.md)** - Move contract design and deployment
-- **[frontend-architecture.md](./frontend-architecture.md)** - Frontend patterns and architecture
+- **[frontend-data-sources.md](./frontend-data-sources.md)** - Frontend data sources (where data comes from)
 - **[architecture-plan.md](./architecture-plan.md)** - Long-term architecture roadmap
 
 ## Reference Documents
