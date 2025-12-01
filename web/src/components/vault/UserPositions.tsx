@@ -50,12 +50,25 @@ function formatAmount(amount: bigint | string, coinType: string): string {
 }
 
 // Format shares (u256 as string)
+// Shares need to be divided by DECIMALS for display since share_ratio is already a unit price
 function formatShares(shares: string): string {
   try {
     const sharesBigInt = BigInt(shares);
+    const sharesWithDecimals = sharesBigInt / VAULT_DECIMALS;
+    const remainder = sharesBigInt % VAULT_DECIMALS;
 
-    // Shares are typically large numbers, format with commas
-    return sharesBigInt.toLocaleString();
+    // Format with decimals if there's a remainder
+    if (remainder === 0n) {
+      return sharesWithDecimals.toLocaleString();
+    }
+
+    // Format with decimal places
+    const decimalPart = remainder.toString().padStart(9, "0");
+    const trimmedDecimal = decimalPart.replace(/0+$/, "");
+
+    return trimmedDecimal.length > 0
+      ? `${sharesWithDecimals.toLocaleString()}.${trimmedDecimal}`
+      : sharesWithDecimals.toLocaleString();
   } catch {
     return shares;
   }
@@ -72,10 +85,13 @@ function calculatePositionValue(
   try {
     const sharesBigInt = BigInt(shares);
 
-    // value = mul_d(shares, share_ratio) / DECIMALS = (shares * share_ratio) / DECIMALS / DECIMALS
-    // Use BigInt for precision, then convert to Number for display
-    const valueWithDecimals = (sharesBigInt * shareRatio) / VAULT_DECIMALS;
-    const valueNum = Number(valueWithDecimals) / Number(VAULT_DECIMALS);
+    // share_ratio from contract is (total_usd_value / total_shares) * DECIMALS
+    // To get unit price, we need to divide by DECIMALS: unit_price = share_ratio / DECIMALS
+    // value = (shares / DECIMALS) * (share_ratio / DECIMALS)
+    //       = (shares * share_ratio) / (DECIMALS * DECIMALS)
+    const sharesNormalized = sharesBigInt / VAULT_DECIMALS;
+    const unitPrice = Number(shareRatio) / Number(VAULT_DECIMALS);
+    const valueNum = Number(sharesNormalized) * unitPrice;
 
     return valueNum.toFixed(6);
   } catch {
@@ -171,8 +187,7 @@ export function UserPositions({ vault }: UserPositionsProps) {
           <Table aria-label="User positions">
             <TableHeader>
               <TableColumn key="receiptId">Receipt ID</TableColumn>
-              <TableColumn key="shares">Shares</TableColumn>
-              <TableColumn key="value">Value</TableColumn>
+              <TableColumn key="sharesValue">Shares / Value</TableColumn>
               <TableColumn key="action">Action</TableColumn>
             </TableHeader>
             <TableBody items={receipts}>
@@ -209,23 +224,28 @@ export function UserPositions({ vault }: UserPositionsProps) {
                       </div>
                     </TableCell>
                     <TableCell>
-                      {receiptDetails ? (
-                        formatShares(receiptDetails.shares)
-                      ) : (
-                        <Spinner size="sm" />
-                      )}
-                    </TableCell>
-                    <TableCell className="font-mono">
-                      {isLoadingShareRatio ? (
-                        <Spinner size="sm" />
-                      ) : receiptDetails ? (
-                        calculatePositionValue(
-                          receiptDetails.shares,
-                          shareRatio,
-                        )
-                      ) : (
-                        <span className="text-default-400">N/A</span>
-                      )}
+                      <div className="flex flex-col gap-1">
+                        <div>
+                          {receiptDetails ? (
+                            formatShares(receiptDetails.shares)
+                          ) : (
+                            <Spinner size="sm" />
+                          )}
+                        </div>
+                        {isLoadingShareRatio ? (
+                          <Spinner size="sm" />
+                        ) : receiptDetails ? (
+                          <span className="font-mono text-xs text-default-500">
+                            $
+                            {calculatePositionValue(
+                              receiptDetails.shares,
+                              shareRatio,
+                            )}
+                          </span>
+                        ) : (
+                          <span className="text-default-400">N/A</span>
+                        )}
+                      </div>
                     </TableCell>
                     <TableCell>
                       {canDeposit ? (
