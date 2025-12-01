@@ -1,8 +1,5 @@
 module volo_vault::operation;
 
-// use cetusclmm::position::Position as CetusPosition;
-// use lending_core::account::AccountCap as NaviAccountCap;
-// use mmt_v3::position::Position as MomentumPosition;
 use std::ascii::String;
 use std::type_name::{Self, TypeName};
 use sui::address;
@@ -11,7 +8,7 @@ use sui::balance::{Self, Balance};
 use sui::clock::Clock;
 use sui::coin::Coin;
 use sui::event::emit;
-// use suilend::lending_market::ObligationOwnerCap as SuilendObligationOwnerCap;
+use volo_vault::bridgingfi_adapter::BridgingFiPosition;
 use volo_vault::receipt::Receipt;
 use volo_vault::reward_manager::RewardManager;
 use volo_vault::vault::{Self, Vault, Operation, OperatorCap};
@@ -108,7 +105,10 @@ public fun start_op_with_bag<T, CoinType, ObligationType>(
   let mut defi_assets = bag::new(ctx);
 
   let defi_assets_length = defi_asset_ids.length();
-  assert!(defi_assets_length == defi_asset_types.length(), ERR_ASSETS_LENGTH_MISMATCH);
+  assert!(
+    defi_assets_length == defi_asset_types.length(),
+    ERR_ASSETS_LENGTH_MISMATCH,
+  );
 
   let mut i = 0;
   while (i < defi_assets_length) {
@@ -151,6 +151,19 @@ public fun start_op_with_bag<T, CoinType, ObligationType>(
     //     );
     //     defi_assets.add<String, MomentumPosition>(momentum_asset_type, momentum_position);
     // };
+
+    if (defi_asset_type == type_name::get<BridgingFiPosition>()) {
+      let bridgingfi_asset_type = vault_utils::parse_key<BridgingFiPosition>(
+        defi_asset_id,
+      );
+      let bridgingfi_position = vault.borrow_defi_asset<T, BridgingFiPosition>(
+        bridgingfi_asset_type,
+      );
+      defi_assets.add<String, BridgingFiPosition>(
+        bridgingfi_asset_type,
+        bridgingfi_position,
+      );
+    };
 
     if (defi_asset_type == type_name::get<Receipt>()) {
       let receipt_asset_type = vault_utils::parse_key<Receipt>(defi_asset_id);
@@ -203,7 +216,13 @@ public fun start_op_with_bag<T, CoinType, ObligationType>(
     total_usd_value,
   });
 
-  (defi_assets, tx, tx_for_check_value_update, principal_balance, coin_type_asset_balance)
+  (
+    defi_assets,
+    tx,
+    tx_for_check_value_update,
+    principal_balance,
+    coin_type_asset_balance,
+  )
 }
 
 public fun end_op_with_bag<T, CoinType, ObligationType>(
@@ -263,6 +282,16 @@ public fun end_op_with_bag<T, CoinType, ObligationType>(
     //     );
     //     vault.return_defi_asset(momentum_asset_type, momentum_position);
     // };
+
+    if (defi_asset_type == type_name::get<BridgingFiPosition>()) {
+      let bridgingfi_asset_type = vault_utils::parse_key<BridgingFiPosition>(
+        defi_asset_id,
+      );
+      let bridgingfi_position = defi_assets.remove<String, BridgingFiPosition>(
+        bridgingfi_asset_type,
+      );
+      vault.return_defi_asset(bridgingfi_asset_type, bridgingfi_position);
+    };
 
     if (defi_asset_type == type_name::get<Receipt>()) {
       let receipt_asset_type = vault_utils::parse_key<Receipt>(defi_asset_id);
@@ -346,6 +375,16 @@ public fun end_op_value_update_with_bag<T, ObligationType>(
     //     let momentum_asset_type = vault_utils::parse_key<MomentumPosition>(defi_asset_id);
     //     assert!(vault.contains_asset_type(momentum_asset_type), ERR_ASSETS_NOT_RETURNED);
     // };
+
+    if (defi_asset_type == type_name::get<BridgingFiPosition>()) {
+      let bridgingfi_asset_type = vault_utils::parse_key<BridgingFiPosition>(
+        defi_asset_id,
+      );
+      assert!(
+        vault.contains_asset_type(bridgingfi_asset_type),
+        ERR_ASSETS_NOT_RETURNED,
+      );
+    };
 
     i = i + 1;
   };
@@ -442,7 +481,12 @@ public fun cancel_user_deposit<PrincipalCoinType>(
   clock: &Clock,
 ) {
   vault::assert_operator_not_freezed(operation, cap);
-  let buffered_coin = vault.cancel_deposit(clock, request_id, receipt_id, recipient);
+  let buffered_coin = vault.cancel_deposit(
+    clock,
+    request_id,
+    receipt_id,
+    recipient,
+  );
   transfer::public_transfer(buffered_coin, recipient);
 }
 
