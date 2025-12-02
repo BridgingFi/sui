@@ -1,14 +1,15 @@
 module volo_vault::bridgingfi_adapter;
 
 use std::ascii::String;
+use std::type_name;
 use sui::balance::{Self, Balance};
 use sui::clock::Clock;
 use sui::coin::{Self, Coin};
 use sui::object::{Self, UID};
 use sui::transfer;
 use sui::tx_context::TxContext;
-use volo_vault::vault::{Self, Vault};
-use volo_vault::vault_oracle::OracleConfig;
+use volo_vault::vault::{Self, Operation, OperatorCap, Vault};
+use volo_vault::vault_oracle::{Self, OracleConfig};
 use volo_vault::vault_utils;
 
 // --------------------- Constants ---------------------//
@@ -128,41 +129,43 @@ public fun create_position(
 
 /// Update the NAV value based on compound interest
 /// Anyone can call this function to update the value
+/// Note: This function does not modify the position state (outstanding_balance and last_update_day).
 public fun update_value<PrincipalCoinType>(
   vault: &mut Vault<PrincipalCoinType>,
   config: &OracleConfig,
   clock: &Clock,
   asset_type: String,
 ) {
-  // Borrow BridgingFiPosition from vault
-  let mut position = vault.borrow_defi_asset<
+  // Get BridgingFiPosition from vault (read-only, no need to modify)
+  let position = vault.get_defi_asset<
     PrincipalCoinType,
     BridgingFiPosition,
   >(
     asset_type,
   );
 
-  // Calculate current real-time debt (compound interest)
-  let current_debt = get_current_debt(&position, clock);
+  // Calculate current real-time debt (compound interest) in coin units
+  let current_debt_coin = get_current_debt(position, clock);
 
-  // Update USD value (using current real-time debt)
-  vault.finish_update_asset_value(
-    asset_type,
-    current_debt,
-    clock.timestamp_ms(),
+  // Get principal coin price from oracle
+  let principal_price = vault_oracle::get_normalized_asset_price(
+    config,
+    clock,
+    type_name::get<PrincipalCoinType>().into_string(),
   );
 
-  // Update outstanding_balance = current real-time debt (snapshot)
-  // Overflow check: ensure current_debt can be converted to u64
-  assert!(current_debt <= U64_MAX, ERR_OVERFLOW);
-  position.set_outstanding_balance(current_debt as u64);
+  // Convert debt from coin units to USD value
+  let current_debt_usd = vault_utils::mul_with_oracle_price(
+    current_debt_coin,
+    principal_price,
+  );
 
-  // Update last_update_day = current dayIndex
-  let current_day = get_day_index(clock.timestamp_ms());
-  position.update_last_update_day(current_day);
-
-  // Return BridgingFiPosition to vault
-  vault.return_defi_asset(asset_type, position);
+  // Update USD value (using current real-time debt in USD)
+  vault.finish_update_asset_value(
+    asset_type,
+    current_debt_usd,
+    clock.timestamp_ms(),
+  );
 }
 
 /// Repay funds to vault
@@ -232,13 +235,15 @@ public fun repay_to_vault<PrincipalCoinType>(
   coin
 }
 
-// --------------------- Package Functions (Operator Only) ---------------------//
+// --------------------- Operator Functions ---------------------//
 
 /// Invest funds to custodian account
-/// Requires operator permission (called via operation module)
+/// Requires operator permission (needs OperatorCap)
 /// @param custodian_account: Secondary confirmation address (must match position's custodian_account)
-public(package) fun invest_to_custodian<PrincipalCoinType>(
+public fun invest_to_custodian<PrincipalCoinType>(
   vault: &mut Vault<PrincipalCoinType>,
+  operation: &Operation,
+  cap: &OperatorCap,
   position: &mut BridgingFiPosition,
   principal_balance: &mut Balance<PrincipalCoinType>,
   amount: u64,
@@ -246,6 +251,8 @@ public(package) fun invest_to_custodian<PrincipalCoinType>(
   clock: &Clock,
   ctx: &mut TxContext,
 ) {
+  // Check operator permission
+  vault::assert_operator_not_freezed(operation, cap);
   // Verify the passed address matches the address in position
   assert!(
     custodian_account == position.custodian_account(),
@@ -280,13 +287,17 @@ public(package) fun invest_to_custodian<PrincipalCoinType>(
 }
 
 /// Update custodian account
-/// Requires operator permission
-public(package) fun update_custodian_account<PrincipalCoinType>(
+/// Requires operator permission (needs OperatorCap)
+public fun update_custodian_account<PrincipalCoinType>(
   vault: &mut Vault<PrincipalCoinType>,
+  operation: &Operation,
+  cap: &OperatorCap,
   asset_type: String,
   new_custodian_account: address,
   ctx: &mut TxContext,
 ) {
+  // Check operator permission
+  vault::assert_operator_not_freezed(operation, cap);
   // Borrow BridgingFiPosition from vault
   let mut position = vault.borrow_defi_asset<
     PrincipalCoinType,
