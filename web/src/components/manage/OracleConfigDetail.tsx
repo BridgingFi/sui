@@ -5,6 +5,7 @@ import {
   Card,
   CardBody,
   CardHeader,
+  Divider,
   Input,
   Modal,
   ModalBody,
@@ -606,13 +607,20 @@ export function OracleConfigDetail() {
             </div>
           </div>
         </CardHeader>
-        <CardBody>
+        <Divider />
+        <CardBody className="p-0">
           {aggregatorsArray.length === 0 ? (
-            <div className="py-8 text-center text-default-500">
+            <div className="py-8 px-4 text-center text-default-500">
               No aggregators configured
             </div>
           ) : (
-            <Table aria-label="Configured Aggregators">
+            <Table
+              aria-label="Configured Aggregators"
+              classNames={{
+                wrapper: ["p-0", "rounded-none"],
+                th: ["first:rounded-s-none", "last:rounded-e-none"],
+              }}
+            >
               <TableHeader>
                 <TableColumn>Asset Type</TableColumn>
                 <TableColumn>Aggregator Address</TableColumn>

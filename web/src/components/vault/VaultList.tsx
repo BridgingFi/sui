@@ -5,6 +5,7 @@ import {
   Card,
   CardBody,
   CardHeader,
+  Divider,
   Spinner,
   Table,
   TableBody,
@@ -103,8 +104,15 @@ export function VaultList() {
           {vaults.length} {vaults.length === 1 ? "vault" : "vaults"}
         </span>
       </CardHeader>
-      <CardBody>
-        <Table aria-label="Vault list">
+      <Divider />
+      <CardBody className="p-0">
+        <Table
+          aria-label="Vault list"
+          classNames={{
+            wrapper: ["p-0", "rounded-none"],
+            th: ["first:rounded-s-none", "last:rounded-e-none"],
+          }}
+        >
           <TableHeader>
             <TableColumn>VAULT ID</TableColumn>
             <TableColumn>COIN TYPE</TableColumn>

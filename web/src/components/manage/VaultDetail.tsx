@@ -16,6 +16,7 @@ import {
   Card,
   CardBody,
   CardHeader,
+  Divider,
   Checkbox,
   Modal,
   ModalBody,
@@ -816,42 +817,35 @@ export function VaultDetail({ vault }: VaultDetailProps) {
             </div>
           </BreadcrumbItem>
         </Breadcrumbs>
-        <p className="text-default-500">
-          Coin Type: {vault.coin_type.split("::").pop() || vault.coin_type}
-        </p>
-      </header>
-
-      {/* Vault Information */}
-      <Card>
-        <CardHeader>Vault Information</CardHeader>
-        <CardBody className="space-y-4">
-          {isLoadingVaultInfo ? (
-            <div className="flex items-center gap-2">
-              <Spinner size="sm" />
-              <span className="text-sm text-default-500">Loading...</span>
-            </div>
-          ) : (
+        <div className="flex items-center gap-4 flex-wrap">
+          <p className="text-default-500">
+            Coin Type:{" "}
+            <span className="text-foreground">
+              {vault.coin_type.split("::").pop() || vault.coin_type}
+            </span>
+          </p>
+          {!isLoadingVaultInfo && (
             <>
-              <div>
-                <p className="text-sm text-default-500">Free Principal</p>
-                <p className="font-medium font-mono">
+              <p className="text-default-500">
+                Free Principal:{" "}
+                <span className="text-foreground font-mono">
                   {freePrincipal !== null
                     ? formatAmount(Number(freePrincipal))
                     : "N/A"}
-                </p>
-              </div>
-              <div>
-                <p className="text-sm text-default-500">Claimable Principal</p>
-                <p className="font-medium font-mono">
+                </span>
+              </p>
+              <p className="text-default-500">
+                Claimable Principal:{" "}
+                <span className="text-foreground font-mono">
                   {claimablePrincipal !== null
                     ? formatAmount(Number(claimablePrincipal))
                     : "N/A"}
-                </p>
-              </div>
+                </span>
+              </p>
             </>
           )}
-        </CardBody>
-      </Card>
+        </div>
+      </header>
 
       {/* Assets Value Information */}
       <AssetsValueList
@@ -869,21 +863,28 @@ export function VaultDetail({ vault }: VaultDetailProps) {
             {depositCursor && " (page)"}
           </span>
         </CardHeader>
-        <CardBody>
+        <Divider />
+        <CardBody className="p-0">
           {isLoadingDepositRequests ? (
-            <div className="flex items-center justify-center py-8">
+            <div className="flex items-center justify-center py-8 px-4">
               <Spinner size="lg" />
               <p className="ml-4 text-default-500">
                 Loading deposit requests...
               </p>
             </div>
           ) : depositRequests.length === 0 ? (
-            <div className="text-center py-8 text-default-500">
+            <div className="text-center py-8 px-4 text-default-500">
               <p>No active deposit requests.</p>
             </div>
           ) : (
             <>
-              <Table aria-label="Deposit requests">
+              <Table
+                aria-label="Deposit requests"
+                classNames={{
+                  wrapper: ["p-0", "rounded-none"],
+                  th: ["first:rounded-s-none", "last:rounded-e-none"],
+                }}
+              >
                 <TableHeader>
                   <TableColumn>REQUEST ID</TableColumn>
                   <TableColumn>RECEIPT ID</TableColumn>
@@ -989,21 +990,28 @@ export function VaultDetail({ vault }: VaultDetailProps) {
             {withdrawCursor && " (page)"}
           </span>
         </CardHeader>
-        <CardBody>
+        <Divider />
+        <CardBody className="p-0">
           {isLoadingWithdrawRequests ? (
-            <div className="flex items-center justify-center py-8">
+            <div className="flex items-center justify-center py-8 px-4">
               <Spinner size="lg" />
               <p className="ml-4 text-default-500">
                 Loading withdraw requests...
               </p>
             </div>
           ) : withdrawRequests.length === 0 ? (
-            <div className="text-center py-8 text-default-500">
+            <div className="text-center py-8 px-4 text-default-500">
               <p>No active withdraw requests.</p>
             </div>
           ) : (
             <>
-              <Table aria-label="Withdraw requests">
+              <Table
+                aria-label="Withdraw requests"
+                classNames={{
+                  wrapper: ["p-0", "rounded-none"],
+                  th: ["first:rounded-s-none", "last:rounded-e-none"],
+                }}
+              >
                 <TableHeader>
                   <TableColumn>REQUEST ID</TableColumn>
                   <TableColumn>RECEIPT ID</TableColumn>

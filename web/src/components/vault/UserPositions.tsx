@@ -5,6 +5,7 @@ import {
   Card,
   CardBody,
   CardHeader,
+  Divider,
   Spinner,
   Table,
   TableBody,
@@ -174,17 +175,24 @@ export function UserPositions({ vault }: UserPositionsProps) {
         Your Positions
         {isLoadingReceipts && <Spinner className="ml-auto" size="sm" />}
       </CardHeader>
-      <CardBody>
+      <Divider />
+      <CardBody className="p-0">
         {isLoadingReceipts ? (
-          <div className="flex items-center justify-center py-4">
+          <div className="flex items-center justify-center py-4 px-4">
             <Spinner size="sm" />
           </div>
         ) : receipts.length === 0 ? (
-          <div className="py-4 text-center text-default-500">
+          <div className="py-4 px-4 text-center text-default-500">
             <p className="text-sm">You have no positions in this vault.</p>
           </div>
         ) : (
-          <Table aria-label="User positions">
+          <Table
+            aria-label="User positions"
+            classNames={{
+              wrapper: ["p-0", "rounded-none"],
+              th: ["first:rounded-s-none", "last:rounded-e-none"],
+            }}
+          >
             <TableHeader>
               <TableColumn key="receiptId">Receipt ID</TableColumn>
               <TableColumn key="sharesValue">Shares / Value</TableColumn>

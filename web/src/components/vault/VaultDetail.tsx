@@ -7,6 +7,7 @@ import {
   Card,
   CardBody,
   CardHeader,
+  Divider,
   Spacer,
   Spinner,
   Table,
@@ -236,22 +237,25 @@ export function VaultDetail({ vault }: VaultDetailProps) {
         <div className="lg:order-1">
           <Card>
             <CardHeader>Share Price</CardHeader>
-            <CardBody>
-              <span className="text-2xl">
-                {isLoadingVaultInfo ? (
-                  <Spinner size="sm" variant="wave" />
-                ) : shareRatio === null ? (
-                  <WarningTriangle />
-                ) : (
-                  latestSharePrice
-                )}
-              </span>
+            <Divider />
+            <CardBody className="p-0">
+              <div className="p-4">
+                <span className="text-2xl">
+                  {isLoadingVaultInfo ? (
+                    <Spinner size="sm" variant="wave" />
+                  ) : shareRatio === null ? (
+                    <WarningTriangle />
+                  ) : (
+                    latestSharePrice
+                  )}
+                </span>
+              </div>
               {isLoadingHistory ? (
-                <div className="flex items-center justify-center py-8">
+                <div className="flex items-center justify-center py-8 px-4">
                   <Spinner size="lg" />
                 </div>
               ) : shareRatioHistory.length === 0 ? (
-                <div className="text-center py-8 text-default-500">
+                <div className="text-center py-8 px-4 text-default-500">
                   <p>No share price history available.</p>
                   <p className="text-sm mt-2">
                     Share price events are emitted when deposits or withdrawals
@@ -259,7 +263,13 @@ export function VaultDetail({ vault }: VaultDetailProps) {
                   </p>
                 </div>
               ) : (
-                <Table aria-label="Share price history">
+                <Table
+                  aria-label="Share price history"
+                  classNames={{
+                    wrapper: ["p-0", "rounded-none"],
+                    th: ["first:rounded-s-none", "last:rounded-e-none"],
+                  }}
+                >
                   <TableHeader>
                     <TableColumn>Timestamp</TableColumn>
                     <TableColumn>Share Price</TableColumn>

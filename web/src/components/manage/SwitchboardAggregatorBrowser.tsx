@@ -3,6 +3,7 @@ import {
   Card,
   CardBody,
   CardHeader,
+  Divider,
   Input,
   Spinner,
   Table,
@@ -172,9 +173,10 @@ export function SwitchboardAggregatorBrowser({
           />
         </div>
       </CardHeader>
-      <CardBody>
+      <Divider />
+      <CardBody className="p-0">
         {filteredAggregators.length === 0 ? (
-          <div className="py-8 text-center text-default-500">
+          <div className="py-8 px-4 text-center text-default-500">
             {searchQuery
               ? "No aggregators found on this page"
               : "No aggregators available"}
@@ -186,7 +188,13 @@ export function SwitchboardAggregatorBrowser({
           </div>
         ) : (
           <div className="max-h-96 overflow-y-auto">
-            <Table aria-label="Switchboard Aggregators">
+            <Table
+              aria-label="Switchboard Aggregators"
+              classNames={{
+                wrapper: ["p-0", "rounded-none"],
+                th: ["first:rounded-s-none", "last:rounded-e-none"],
+              }}
+            >
               <TableHeader>
                 <TableColumn>Name</TableColumn>
                 <TableColumn>Address</TableColumn>

@@ -2,22 +2,6 @@
  * Utility functions for BridgingFi adapter
  */
 
-const VOLO_VAULT_PACKAGE_ID_LATEST =
-  import.meta.env.VITE_VOLO_VAULT_PACKAGE_ID_LATEST || "";
-
-/**
- * Generate asset type string for BridgingFiPosition
- * This matches vault_utils::parse_key<BridgingFiPosition>(idx)
- * Format: type_name::get<BridgingFiPosition>().into_string() + idx.to_string()
- * Example: "volo_vault::bridgingfi_adapter::BridgingFiPosition0"
- * @param idx - Index of the position (default 0)
- */
-export function parseBridgingFiAssetType(idx: number = 0): string {
-  // vault_utils::parse_key returns: type_name + idx.to_string()
-  // So for idx=0, it's "volo_vault::bridgingfi_adapter::BridgingFiPosition0"
-  return `${VOLO_VAULT_PACKAGE_ID_LATEST}::bridgingfi_adapter::BridgingFiPosition${idx}`;
-}
-
 /**
  * Convert APR from u256 decimal format to percentage string
  * APR is stored as: 5% = 50000000 (0.05 * 1e9)

@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { useSuiClientQuery } from "@mysten/dapp-kit";
 import { Transaction } from "@mysten/sui/transactions";
 import { SUI_CLOCK_OBJECT_ID } from "@mysten/sui/utils";
@@ -23,10 +23,12 @@ export interface BridgingFiPositionData {
   outstandingBalance: bigint;
   aprDecimal: bigint;
   lastUpdateDay: number;
+  coinType: string; // Coin type from vault (for decimals lookup)
   // Computed fields
   aprPercentage: string;
   lastUpdateDate: string;
   currentDebt: bigint; // Approximate, calculated client-side
+  currentDebtCalculatedAt?: Date; // When current debt was calculated
 }
 
 /**
@@ -217,6 +219,7 @@ export function useBridgingFiPosition(
       outstandingBalance,
       aprDecimal,
       lastUpdateDay,
+      coinType: coinType || "", // Store coinType from hook parameter
       aprPercentage: formatAPR(aprDecimal),
       lastUpdateDate: formatDayIndex(lastUpdateDay),
       currentDebt: calculateCurrentDebt(
@@ -226,7 +229,7 @@ export function useBridgingFiPosition(
         currentDay,
       ),
     };
-  }, [positionData, positionObjectId]);
+  }, [positionData, positionObjectId, coinType]);
 
   // Step 6: Fetch accurate current debt from on-chain view function
   // Build transaction for devInspectTransactionBlock
@@ -267,6 +270,10 @@ export function useBridgingFiPosition(
       },
     );
 
+  // Track when current debt was calculated
+  const [currentDebtCalculatedAt, setCurrentDebtCalculatedAt] =
+    useState<Date | null>(null);
+
   // Parse on-chain current debt from result
   const onChainCurrentDebt = useMemo(() => {
     if (!onChainCurrentDebtResult) {
@@ -302,20 +309,38 @@ export function useBridgingFiPosition(
     return null;
   }, [onChainCurrentDebtResult]);
 
+  // Update calculation timestamp when debt value changes (both on-chain and client-side)
+  useEffect(() => {
+    if (onChainCurrentDebt !== null && onChainCurrentDebt !== undefined) {
+      setCurrentDebtCalculatedAt(new Date());
+    }
+  }, [onChainCurrentDebt]);
+
+  // Also update timestamp when position data changes (for client-side calculation)
+  useEffect(() => {
+    if (position) {
+      setCurrentDebtCalculatedAt(new Date());
+    }
+  }, [position?.currentDebt]);
+
   // Use on-chain debt if available, otherwise use client-side calculation
   const finalPosition = useMemo((): BridgingFiPositionData | null => {
     if (!position) {
       return null;
     }
 
+    const isUsingOnChainDebt =
+      onChainCurrentDebt !== null && onChainCurrentDebt !== undefined;
+
     return {
       ...position,
-      currentDebt:
-        onChainCurrentDebt !== null && onChainCurrentDebt !== undefined
-          ? onChainCurrentDebt
-          : position.currentDebt,
+      currentDebt: isUsingOnChainDebt
+        ? onChainCurrentDebt
+        : position.currentDebt,
+      currentDebtCalculatedAt: currentDebtCalculatedAt || undefined,
+      coinType: coinType || position.coinType, // Preserve coinType
     };
-  }, [position, onChainCurrentDebt]);
+  }, [position, onChainCurrentDebt, currentDebtCalculatedAt, coinType]);
 
   const isLoading =
     isLoadingVault || isLoadingDynamicField || isLoadingOnChainDebt;

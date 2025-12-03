@@ -11,6 +11,7 @@ import {
   Card,
   CardBody,
   CardHeader,
+  Divider,
   Modal,
   ModalBody,
   ModalContent,
@@ -24,12 +25,18 @@ import {
   TableHeader,
   TableRow,
 } from "@heroui/react";
-import { useState } from "react";
+import { Trash, Xmark } from "iconoir-react";
+import { useState, useMemo } from "react";
 import dayjs from "dayjs";
+import utc from "dayjs/plugin/utc";
+
+dayjs.extend(utc);
 
 import { useOperatorCaps } from "@/hooks/useOperatorCaps";
 import { useVaultAssets, type AssetValueInfo } from "@/hooks/useVaultAssets";
 import { useBridgingFiPosition } from "@/hooks/useBridgingFiPosition";
+import { useOracleConfig } from "@/hooks/useOracleConfig";
+import { InvestmentForm } from "@/components/manage/InvestmentForm";
 import { loggers } from "@/utils/debug";
 import { showTransactionErrorToast } from "@/utils/transaction";
 
@@ -95,8 +102,32 @@ export function AssetsValueList({
   const client = useSuiClient();
   const { mutate: signAndExecute, isPending } = useSignAndExecuteTransaction();
   const { operatorCaps } = useOperatorCaps();
+  const { oracleConfig } = useOracleConfig();
 
   const coinType = vault.coin_type;
+
+  // Get coin decimals from oracle config
+  // Note: coinType comes from vault.coin_type, which is correct since position belongs to vault
+  const coinDecimals = useMemo(() => {
+    if (!oracleConfig) {
+      throw new Error(
+        `Oracle config not loaded. Cannot determine decimals for coin type: ${coinType}`,
+      );
+    }
+
+    // Try to get decimals from oracle config using coin type
+    // Remove 0x prefix if present for lookup
+    const lookupKey = coinType.startsWith("0x") ? coinType.slice(2) : coinType;
+    const priceInfo = oracleConfig.aggregators.get(lookupKey);
+
+    if (!priceInfo || !priceInfo.decimals) {
+      throw new Error(
+        `Decimals not found in oracle config for coin type: ${coinType}. Please ensure the coin type is configured in OracleConfig.`,
+      );
+    }
+
+    return priceInfo.decimals;
+  }, [oracleConfig, coinType]);
 
   // Query vault assets
   const { assets, isLoading: isLoadingAssets } = useVaultAssets(
@@ -115,6 +146,9 @@ export function AssetsValueList({
   const [expandedAssetType, setExpandedAssetType] = useState<string | null>(
     null,
   );
+
+  // Investment modal state
+  const [isInvestmentModalOpen, setIsInvestmentModalOpen] = useState(false);
 
   // Query BridgingFiPosition details when an asset is expanded
   const {
@@ -239,25 +273,32 @@ export function AssetsValueList({
               color="primary"
               isDisabled={!currentAccount}
               size="sm"
-              variant="flat"
+              variant="bordered"
               onPress={onCreatePosition}
             >
               Add Position
             </Button>
           )}
         </CardHeader>
-        <CardBody>
+        <Divider />
+        <CardBody className="p-0">
           {isLoadingAssets ? (
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 p-4">
               <Spinner size="sm" />
               <span className="text-sm text-default-500">Loading...</span>
             </div>
           ) : assets.length === 0 ? (
-            <div className="text-center py-4 text-default-500">
+            <div className="text-center py-4 px-4 text-default-500">
               <p>No assets found.</p>
             </div>
           ) : (
-            <Table aria-label="Assets value">
+            <Table
+              aria-label="Assets value"
+              classNames={{
+                wrapper: ["p-0", "rounded-none"],
+                th: ["first:rounded-s-none", "last:rounded-e-none"],
+              }}
+            >
               <TableHeader>
                 <TableColumn>ASSET TYPE</TableColumn>
                 <TableColumn>USD VALUE</TableColumn>
@@ -273,62 +314,61 @@ export function AssetsValueList({
 
                   return (
                     <TableRow key={asset.assetType}>
-                      <TableCell>
-                        <code className="text-xs break-all whitespace-normal">
+                      <TableCell className="align-top">
+                        <code className="text-sm break-all whitespace-normal">
                           {asset.assetType}
                         </code>
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="align-top">
                         <span className="font-mono text-sm">
                           {formatAmount(Number(asset.usdValue), 9)}
                         </span>
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="align-top">
                         <span className="text-sm">
                           {asset.lastUpdated > 0
-                            ? dayjs(asset.lastUpdated).format(
-                                "YYYY-MM-DD HH:mm:ss",
-                              )
+                            ? `${dayjs
+                                .utc(asset.lastUpdated)
+                                .format("YYYY-MM-DD HH:mm:ss")} (UTC)`
                             : "Never"}
                         </span>
                       </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          {isBridgingFiPosition(asset.assetType) && (
-                            <Button
-                              color="primary"
-                              isDisabled={!currentAccount}
-                              size="sm"
-                              variant="light"
-                              onPress={() => {
-                                setExpandedAssetType(
-                                  expandedAssetType === asset.assetType
-                                    ? null
-                                    : asset.assetType,
-                                );
-                              }}
-                            >
-                              {expandedAssetType === asset.assetType
-                                ? "Hide"
-                                : "Details"}
-                            </Button>
-                          )}
-                          {canRemove ? (
-                            <Button
-                              color="danger"
-                              isDisabled={!currentAccount || isPending}
-                              size="sm"
-                              variant="light"
-                              onPress={() => handleRemoveClick(asset)}
-                            >
-                              Remove
-                            </Button>
-                          ) : (
-                            <span className="text-xs text-default-400">
-                              {isPrincipalCoinType ? "Principal" : "-"}
-                            </span>
-                          )}
-                        </div>
+                      <TableCell className="align-top flex gap-1">
+                        {isBridgingFiPosition(asset.assetType) && (
+                          <Button
+                            color="primary"
+                            isDisabled={!currentAccount}
+                            size="sm"
+                            variant="bordered"
+                            onPress={() => {
+                              setExpandedAssetType(
+                                expandedAssetType === asset.assetType
+                                  ? null
+                                  : asset.assetType,
+                              );
+                            }}
+                          >
+                            {expandedAssetType === asset.assetType
+                              ? "Hide"
+                              : "Details"}
+                          </Button>
+                        )}
+                        {canRemove ? (
+                          <Button
+                            isIconOnly
+                            color="danger"
+                            isDisabled={!currentAccount || isPending}
+                            size="sm"
+                            variant="light"
+                            onPress={() => handleRemoveClick(asset)}
+                          >
+                            <Trash className="w-4 h-4" />
+                          </Button>
+                        ) : !isBridgingFiPosition(asset.assetType) ? (
+                          <span className="text-xs text-default-400">
+                            {isPrincipalCoinType ? "Principal" : "-"}
+                          </span>
+                        ) : null}
                       </TableCell>
                     </TableRow>
                   );
@@ -339,7 +379,7 @@ export function AssetsValueList({
 
           {/* BridgingFi Position Details - Display below table when expanded */}
           {expandedAssetType && isBridgingFiPosition(expandedAssetType) && (
-            <div className="mt-4 rounded-lg border border-default-200 bg-default-50 p-4">
+            <div className="rounded-lg border border-default-200 bg-default-50 p-4 m-2 mt-0">
               {isLoadingBridgingFiPosition ? (
                 <div className="flex items-center justify-center py-8">
                   <Spinner size="lg" />
@@ -351,71 +391,85 @@ export function AssetsValueList({
               ) : (
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
-                    <h3 className="text-lg font-semibold">
-                      BridgingFi Position Details
-                    </h3>
+                    <span>BridgingFi Position Details</span>
                     <Button
+                      isIconOnly
                       size="sm"
                       variant="light"
                       onPress={() => setExpandedAssetType(null)}
                     >
-                      Close
+                      <Xmark className="w-4 h-4" />
                     </Button>
+                  </div>
+                  <div className="space-y-1 text-sm">
+                    <p>
+                      <span className="text-default-500">
+                        Position Object ID:
+                      </span>{" "}
+                      <code className="text-xs font-mono break-all">
+                        {bridgingFiPosition.objectId}
+                      </code>
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <p className="flex-1">
+                        <span className="text-default-500">
+                          Custodian Account:
+                        </span>{" "}
+                        <code className="text-xs font-mono break-all">
+                          {bridgingFiPosition.custodianAccount}
+                        </code>
+                      </p>
+                      <Button
+                        color="primary"
+                        isDisabled={!currentAccount}
+                        size="sm"
+                        variant="bordered"
+                        onPress={() => setIsInvestmentModalOpen(true)}
+                      >
+                        Invest to Custodian
+                      </Button>
+                    </div>
+                    <p>
+                      <span className="text-default-500">APR:</span>{" "}
+                      <span className="font-mono">
+                        {bridgingFiPosition.aprPercentage}
+                      </span>
+                    </p>
                   </div>
                   <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                     <div className="rounded-lg bg-default-100 p-3">
                       <p className="text-sm font-semibold text-default-600">
                         Outstanding Balance
                       </p>
-                      <p className="text-lg font-mono">
+                      <p className="text-sm font-mono">
                         {formatAmount(
                           Number(bridgingFiPosition.outstandingBalance),
-                          9,
+                          coinDecimals,
                         )}
+                      </p>
+                      <p className="text-xs text-default-500 mt-1">
+                        Last Updated: {bridgingFiPosition.lastUpdateDate} (UTC)
                       </p>
                     </div>
                     <div className="rounded-lg bg-default-100 p-3">
                       <p className="text-sm font-semibold text-default-600">
                         Current Debt (Estimated)
                       </p>
-                      <p className="text-lg font-mono">
+                      <p className="text-sm font-mono">
                         {formatAmount(
                           Number(bridgingFiPosition.currentDebt),
-                          9,
+                          coinDecimals,
                         )}
                       </p>
-                    </div>
-                    <div className="rounded-lg bg-default-100 p-3">
-                      <p className="text-sm font-semibold text-default-600">
-                        APR
-                      </p>
-                      <p className="text-lg">
-                        {bridgingFiPosition.aprPercentage}
-                      </p>
-                    </div>
-                    <div className="rounded-lg bg-default-100 p-3">
-                      <p className="text-sm font-semibold text-default-600">
-                        Last Update
-                      </p>
-                      <p className="text-lg">
-                        {bridgingFiPosition.lastUpdateDate}
-                      </p>
-                    </div>
-                    <div className="rounded-lg bg-default-100 p-3 md:col-span-2">
-                      <p className="text-sm font-semibold text-default-600">
-                        Custodian Account
-                      </p>
-                      <p className="text-sm font-mono break-all">
-                        {bridgingFiPosition.custodianAccount}
-                      </p>
-                    </div>
-                    <div className="rounded-lg bg-default-100 p-3 md:col-span-2">
-                      <p className="text-sm font-semibold text-default-600">
-                        Position Object ID
-                      </p>
-                      <p className="text-sm font-mono break-all">
-                        {bridgingFiPosition.objectId}
-                      </p>
+                      {bridgingFiPosition.currentDebtCalculatedAt && (
+                        <p className="text-xs text-default-500 mt-1">
+                          Estimated at:{" "}
+                          {dayjs
+                            .utc(bridgingFiPosition.currentDebtCalculatedAt)
+                            .format("YYYY-MM-DD HH:mm:ss")}{" "}
+                          (UTC)
+                        </p>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -424,6 +478,22 @@ export function AssetsValueList({
           )}
         </CardBody>
       </Card>
+
+      {/* Investment Modal */}
+      {bridgingFiPosition && expandedAssetType && (
+        <InvestmentForm
+          assetType={expandedAssetType}
+          isOpen={isInvestmentModalOpen}
+          position={bridgingFiPosition}
+          vault={vault}
+          onClose={() => setIsInvestmentModalOpen(false)}
+          onSuccess={() => {
+            setIsInvestmentModalOpen(false);
+            // Refresh position data
+            // The hook will automatically refetch when dependencies change
+          }}
+        />
+      )}
 
       {/* Remove Position Modal */}
       {selectedAsset && (
@@ -467,9 +537,9 @@ export function AssetsValueList({
                     <p className="text-default-500">Last Updated</p>
                     <p className="font-medium">
                       {selectedAsset.lastUpdated > 0
-                        ? dayjs(selectedAsset.lastUpdated).format(
-                            "YYYY-MM-DD HH:mm:ss",
-                          )
+                        ? `${dayjs
+                            .utc(selectedAsset.lastUpdated)
+                            .format("YYYY-MM-DD HH:mm:ss")} (UTC)`
                         : "Never"}
                     </p>
                   </div>

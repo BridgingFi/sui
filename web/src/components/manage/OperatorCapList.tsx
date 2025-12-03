@@ -4,6 +4,7 @@ import {
   Card,
   CardBody,
   CardHeader,
+  Divider,
   Chip,
   Input,
   Modal,
@@ -219,14 +220,21 @@ export function OperatorCapList() {
           </Button>
         </div>
       </CardHeader>
-      <CardBody>
+      <Divider />
+      <CardBody className="p-0">
         {operatorCaps.length === 0 ? (
-          <div className="text-center py-8 text-default-500">
+          <div className="text-center py-8 px-4 text-default-500">
             <p>No OperatorCap objects found.</p>
           </div>
         ) : (
           <>
-            <Table aria-label="OperatorCap list">
+            <Table
+              aria-label="OperatorCap list"
+              classNames={{
+                wrapper: ["p-0", "rounded-none"],
+                th: ["first:rounded-s-none", "last:rounded-e-none"],
+              }}
+            >
               <TableHeader>
                 <TableColumn>OBJECT ID</TableColumn>
                 <TableColumn>OWNER</TableColumn>
