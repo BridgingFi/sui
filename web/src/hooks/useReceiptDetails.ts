@@ -5,7 +5,9 @@ import { useMemo } from "react";
 
 import { loggers } from "@/utils/debug";
 
-const VOLO_VAULT_PACKAGE_ID = import.meta.env.VITE_VOLO_VAULT_PACKAGE_ID || "";
+// Use latest package ID for calling contracts (may be upgraded)
+const VOLO_VAULT_PACKAGE_ID =
+  import.meta.env.VITE_VOLO_VAULT_PACKAGE_ID_LATEST || "";
 const { errorLog } = loggers("app:hooks:useReceiptDetails");
 
 export interface ReceiptDetails {

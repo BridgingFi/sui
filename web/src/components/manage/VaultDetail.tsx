@@ -32,9 +32,10 @@ import {
   Tooltip,
 } from "@heroui/react";
 import { useState } from "react";
-import dayjs from "dayjs";
 
+import { AssetsValueList } from "@/components/manage/AssetsValueList";
 import { CopyButton } from "@/components/common/CopyButton";
+import { CreateBridgingFiPositionForm } from "@/components/manage/CreateBridgingFiPositionForm";
 import { VAULT_DECIMALS } from "@/lib/constants";
 import {
   useDepositRequests,
@@ -42,7 +43,6 @@ import {
 } from "@/hooks/useVaultRequests";
 import { useOperatorCaps } from "@/hooks/useOperatorCaps";
 import { useVaultInfo } from "@/hooks/useVaultInfo";
-import { useVaultAssets } from "@/hooks/useVaultAssets";
 import { loggers } from "@/utils/debug";
 import {
   showTransactionErrorToast,
@@ -51,7 +51,9 @@ import {
 
 const { errorLog, debugLog } = loggers("app:manage:vault-detail");
 
-const VOLO_VAULT_PACKAGE_ID = import.meta.env.VITE_VOLO_VAULT_PACKAGE_ID || "";
+// Use latest package ID for calling contracts (may be upgraded)
+const VOLO_VAULT_PACKAGE_ID_LATEST =
+  import.meta.env.VITE_VOLO_VAULT_PACKAGE_ID_LATEST || "";
 const VOLO_OPERATION_ID = import.meta.env.VITE_VOLO_OPERATION_ID || "";
 const VOLO_ORACLE_CONFIG_ID = import.meta.env.VITE_VOLO_ORACLE_CONFIG_ID || "";
 
@@ -100,12 +102,6 @@ export function VaultDetail({ vault }: VaultDetailProps) {
     assetTypes,
     isLoading: isLoadingVaultInfo,
   } = useVaultInfo(vault.vault_id);
-
-  // Query vault assets
-  const { assets, isLoading: isLoadingAssets } = useVaultAssets(
-    vault.vault_id,
-    assetTypes || [],
-  );
 
   // Pagination state for deposit requests
   const [depositCursor, setDepositCursor] = useState<string | undefined>(
@@ -222,6 +218,10 @@ export function VaultDetail({ vault }: VaultDetailProps) {
   const [cachedTransaction, setCachedTransaction] =
     useState<Transaction | null>(null);
 
+  // Create position modal state
+  const [isCreatePositionModalOpen, setIsCreatePositionModalOpen] =
+    useState(false);
+
   // Build transaction for execute_deposit (used for both dryrun and execution)
   const buildExecuteDepositTransaction = (
     request: DepositRequest,
@@ -271,7 +271,7 @@ export function VaultDetail({ vault }: VaultDetailProps) {
     // calls get_total_usd_value (line 820) which requires all assets to be
     // updated within MAX_UPDATE_INTERVAL which is 0.
     tx.moveCall({
-      target: `${VOLO_VAULT_PACKAGE_ID}::vault::update_free_principal_value`,
+      target: `${VOLO_VAULT_PACKAGE_ID_LATEST}::vault::update_free_principal_value`,
       typeArguments: [coinType],
       arguments: [
         tx.object(vault.vault_id),
@@ -282,7 +282,7 @@ export function VaultDetail({ vault }: VaultDetailProps) {
 
     // Call execute_deposit with provided max_shares_received
     tx.moveCall({
-      target: `${VOLO_VAULT_PACKAGE_ID}::operation::execute_deposit`,
+      target: `${VOLO_VAULT_PACKAGE_ID_LATEST}::operation::execute_deposit`,
       typeArguments: [coinType],
       arguments: [
         tx.object(VOLO_OPERATION_ID),
@@ -747,7 +747,7 @@ export function VaultDetail({ vault }: VaultDetailProps) {
 
       // Call cancel_user_deposit
       tx.moveCall({
-        target: `${VOLO_VAULT_PACKAGE_ID}::operation::cancel_user_deposit`,
+        target: `${VOLO_VAULT_PACKAGE_ID_LATEST}::operation::cancel_user_deposit`,
         typeArguments: [coinType],
         arguments: [
           tx.object(VOLO_OPERATION_ID),
@@ -854,54 +854,11 @@ export function VaultDetail({ vault }: VaultDetailProps) {
       </Card>
 
       {/* Assets Value Information */}
-      {assetTypes && assetTypes.length > 0 && (
-        <Card>
-          <CardHeader>Assets Value</CardHeader>
-          <CardBody>
-            {isLoadingAssets ? (
-              <div className="flex items-center gap-2">
-                <Spinner size="sm" />
-                <span className="text-sm text-default-500">Loading...</span>
-              </div>
-            ) : assets.length === 0 ? (
-              <div className="text-center py-4 text-default-500">
-                <p>No assets found.</p>
-              </div>
-            ) : (
-              <Table aria-label="Assets value">
-                <TableHeader>
-                  <TableColumn>ASSET TYPE</TableColumn>
-                  <TableColumn>USD VALUE</TableColumn>
-                  <TableColumn>LAST UPDATED</TableColumn>
-                </TableHeader>
-                <TableBody>
-                  {assets.map((asset) => (
-                    <TableRow key={asset.assetType}>
-                      <TableCell>
-                        <code className="text-xs">{asset.assetType}</code>
-                      </TableCell>
-                      <TableCell>
-                        <span className="font-mono text-sm">
-                          {asset.usdValue.toString()}
-                        </span>
-                      </TableCell>
-                      <TableCell>
-                        <span className="text-sm">
-                          {asset.lastUpdated > 0
-                            ? dayjs(asset.lastUpdated).format(
-                                "YYYY-MM-DD HH:mm:ss",
-                              )
-                            : "Never"}
-                        </span>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            )}
-          </CardBody>
-        </Card>
-      )}
+      <AssetsValueList
+        assetTypes={assetTypes}
+        vault={vault}
+        onCreatePosition={() => setIsCreatePositionModalOpen(true)}
+      />
 
       {/* Deposit Requests */}
       <Card>
@@ -1353,6 +1310,17 @@ export function VaultDetail({ vault }: VaultDetailProps) {
           </ModalFooter>
         </ModalContent>
       </Modal>
+
+      {/* Create Position Modal */}
+      <CreateBridgingFiPositionForm
+        isOpen={isCreatePositionModalOpen}
+        vault={vault}
+        onClose={() => setIsCreatePositionModalOpen(false)}
+        onSuccess={() => {
+          // Refetch position data after successful creation
+          // The useBridgingFiPosition hook will automatically refetch
+        }}
+      />
     </section>
   );
 }

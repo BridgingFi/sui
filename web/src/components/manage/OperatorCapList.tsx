@@ -36,7 +36,9 @@ import { showTransactionErrorToast } from "@/utils/transaction";
 
 const { errorLog } = loggers("app:manage:operator-cap-list");
 
-const VOLO_VAULT_PACKAGE_ID = import.meta.env.VITE_VOLO_VAULT_PACKAGE_ID || "";
+// Use latest package ID for calling contracts (may be upgraded)
+const VOLO_VAULT_PACKAGE_ID_LATEST =
+  import.meta.env.VITE_VOLO_VAULT_PACKAGE_ID_LATEST || "";
 const PAGE_SIZE = 20;
 
 function truncateAddress(address: string): string {
@@ -134,7 +136,7 @@ export function OperatorCapList() {
 
       // Call create_operator_cap which returns an OperatorCap
       const operatorCap = tx.moveCall({
-        target: `${VOLO_VAULT_PACKAGE_ID}::vault_manage::create_operator_cap`,
+        target: `${VOLO_VAULT_PACKAGE_ID_LATEST}::vault_manage::create_operator_cap`,
         arguments: [tx.object(adminCap.objectId)],
       });
 

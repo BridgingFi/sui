@@ -9,7 +9,9 @@ import { loggers } from "@/utils/debug";
 
 const { debugLog, errorLog } = loggers("app:hooks:operator-caps");
 
-const VOLO_VAULT_PACKAGE_ID = import.meta.env.VITE_VOLO_VAULT_PACKAGE_ID || "";
+// Use initial package ID for querying objects (object addresses don't change after upgrade)
+const VOLO_VAULT_PACKAGE_ID =
+  import.meta.env.VITE_VOLO_VAULT_PACKAGE_ID_INITIAL || "";
 
 export interface OperatorCap {
   objectId: string;

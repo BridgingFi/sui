@@ -46,7 +46,9 @@ import { showTransactionErrorToast } from "@/utils/transaction";
 
 const { errorLog } = loggers("app:manage:oracle-config");
 
-const VOLO_VAULT_PACKAGE_ID = import.meta.env.VITE_VOLO_VAULT_PACKAGE_ID || "";
+// Use latest package ID for calling contracts (may be upgraded)
+const VOLO_VAULT_PACKAGE_ID_LATEST =
+  import.meta.env.VITE_VOLO_VAULT_PACKAGE_ID_LATEST || "";
 const VOLO_ORACLE_CONFIG_ID = import.meta.env.VITE_VOLO_ORACLE_CONFIG_ID || "";
 
 function truncateAddress(address: string): string {
@@ -219,7 +221,7 @@ export function OracleConfigDetail() {
       }
 
       tx.moveCall({
-        target: `${VOLO_VAULT_PACKAGE_ID}::vault_manage::add_switchboard_aggregator`,
+        target: `${VOLO_VAULT_PACKAGE_ID_LATEST}::vault_manage::add_switchboard_aggregator`,
         arguments: [
           tx.object(adminCap.objectId),
           tx.object(VOLO_ORACLE_CONFIG_ID),
@@ -288,7 +290,7 @@ export function OracleConfigDetail() {
       const tx = new Transaction();
 
       tx.moveCall({
-        target: `${VOLO_VAULT_PACKAGE_ID}::vault_manage::remove_switchboard_aggregator`,
+        target: `${VOLO_VAULT_PACKAGE_ID_LATEST}::vault_manage::remove_switchboard_aggregator`,
         arguments: [
           tx.object(adminCap.objectId),
           tx.object(VOLO_ORACLE_CONFIG_ID),
@@ -365,7 +367,7 @@ export function OracleConfigDetail() {
       const tx = new Transaction();
 
       tx.moveCall({
-        target: `${VOLO_VAULT_PACKAGE_ID}::vault_manage::change_switchboard_aggregator`,
+        target: `${VOLO_VAULT_PACKAGE_ID_LATEST}::vault_manage::change_switchboard_aggregator`,
         arguments: [
           tx.object(adminCap.objectId),
           tx.object(VOLO_ORACLE_CONFIG_ID),
@@ -434,7 +436,7 @@ export function OracleConfigDetail() {
 
       if (updateInterval) {
         tx.moveCall({
-          target: `${VOLO_VAULT_PACKAGE_ID}::vault_manage::set_update_interval`,
+          target: `${VOLO_VAULT_PACKAGE_ID_LATEST}::vault_manage::set_update_interval`,
           arguments: [
             tx.object(adminCap.objectId),
             tx.object(VOLO_ORACLE_CONFIG_ID),
@@ -445,7 +447,7 @@ export function OracleConfigDetail() {
 
       if (dexSlippage) {
         tx.moveCall({
-          target: `${VOLO_VAULT_PACKAGE_ID}::vault_manage::set_dex_slippage`,
+          target: `${VOLO_VAULT_PACKAGE_ID_LATEST}::vault_manage::set_dex_slippage`,
           arguments: [
             tx.object(adminCap.objectId),
             tx.object(VOLO_ORACLE_CONFIG_ID),

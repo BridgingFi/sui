@@ -7,7 +7,9 @@ import { loggers } from "@/utils/debug";
 
 const { debugLog, errorLog } = loggers("app:hooks:all-operator-caps");
 
-const VOLO_VAULT_PACKAGE_ID = import.meta.env.VITE_VOLO_VAULT_PACKAGE_ID || "";
+// Use initial package ID for querying events (events are tied to initial package)
+const VOLO_VAULT_PACKAGE_ID =
+  import.meta.env.VITE_VOLO_VAULT_PACKAGE_ID_INITIAL || "";
 const OPERATION_OBJECT_ID = import.meta.env.VITE_OPERATION_OBJECT_ID || "";
 
 export interface OperatorCapInfo {
@@ -272,7 +274,9 @@ export function useAllOperatorCaps(options: OperatorCapsOptions = {}) {
     const caps: OperatorCapInfo[] = [];
 
     for (const capId of eventsData) {
-      const capObj = operatorCapsData.find((c) => c.objectId === capId);
+      const capObj = operatorCapsData.find(
+        (c: { objectId: string; owner: string | null }) => c.objectId === capId,
+      );
       const isFreezed = operationData?.get(capId) ?? false;
 
       caps.push({

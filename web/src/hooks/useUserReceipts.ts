@@ -1,6 +1,10 @@
 import { useSuiClientQuery } from "@mysten/dapp-kit";
 import { useCurrentAccount } from "@mysten/dapp-kit";
 
+// Use initial package ID for querying objects (object addresses don't change after upgrade)
+const VOLO_VAULT_PACKAGE_ID =
+  import.meta.env.VITE_VOLO_VAULT_PACKAGE_ID_INITIAL || "";
+
 export interface UserReceipt {
   id: string;
   vaultId: string;
@@ -23,7 +27,7 @@ export function useUserReceipts(vaultId: string | null) {
     {
       owner: currentAccount?.address || "",
       filter: {
-        StructType: `${import.meta.env.VITE_VOLO_VAULT_PACKAGE_ID || ""}::receipt::Receipt`,
+        StructType: `${VOLO_VAULT_PACKAGE_ID}::receipt::Receipt`,
       },
       options: {
         showContent: true,
@@ -31,9 +35,7 @@ export function useUserReceipts(vaultId: string | null) {
       },
     },
     {
-      enabled:
-        !!currentAccount?.address &&
-        !!import.meta.env.VITE_VOLO_VAULT_PACKAGE_ID,
+      enabled: !!currentAccount?.address && !!VOLO_VAULT_PACKAGE_ID,
       refetchInterval: 10000, // Refetch every 10 seconds to catch new receipts
     },
   );

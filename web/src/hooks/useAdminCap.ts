@@ -9,16 +9,13 @@ import { loggers } from "@/utils/debug";
 
 const { debugLog, errorLog } = loggers("app:hooks:admin-cap");
 
-const VOLO_VAULT_PACKAGE_ID = import.meta.env.VITE_VOLO_VAULT_PACKAGE_ID || "";
-
-export interface AdminCap {
-  objectId: string;
-  type: string;
-}
+// AdminCap object ID - use this to directly query if user owns the AdminCap
+// This avoids issues with package upgrades where the type might change
+const ADMIN_CAP_ID = import.meta.env.VITE_VOLO_VAULT_ADMINCAP_ID || "";
 
 /**
  * Hook to check if user has AdminCap
- * AdminCap type: volo_vault::vault::AdminCap
+ * Uses AdminCap object ID to directly query ownership
  * Returns loading state while wallet is connecting or not connected
  */
 export function useAdminCap() {
@@ -30,25 +27,21 @@ export function useAdminCap() {
   const isWalletReady = isConnected && !!currentAccount;
 
   const {
-    data: adminCapData,
+    data: adminCapObject,
     isLoading: isQueryLoading,
     isFetching,
     error,
     refetch,
   } = useSuiClientQuery(
-    "getOwnedObjects",
+    "getObject",
     {
-      owner: currentAccount?.address || "",
-      filter: {
-        StructType: `${VOLO_VAULT_PACKAGE_ID}::vault::AdminCap`,
-      },
+      id: ADMIN_CAP_ID,
       options: {
-        showContent: true,
-        showType: true,
+        showOwner: true,
       },
     },
     {
-      enabled: isWalletReady && !!VOLO_VAULT_PACKAGE_ID,
+      enabled: isWalletReady && !!ADMIN_CAP_ID,
       staleTime: 60000, // Consider data fresh for 60 seconds (AdminCap rarely changes)
     },
   );
@@ -56,36 +49,52 @@ export function useAdminCap() {
   // Return loading state if wallet is not ready or query is loading
   const isLoading = !isWalletReady || isQueryLoading;
 
-  // Check if user has AdminCap
+  // Check if user owns the AdminCap
   const hasAdminCap = useMemo(() => {
-    const hasCap = (adminCapData?.data?.length || 0) > 0;
+    if (!adminCapObject?.data || !currentAccount?.address) {
+      return false;
+    }
+
+    // Check if the object's owner matches the current account
+    const owner = adminCapObject.data.owner;
+    let isOwner = false;
+
+    if (owner) {
+      if (typeof owner === "string") {
+        // AddressOwner case
+        isOwner = owner === currentAccount.address;
+      } else if ("AddressOwner" in owner) {
+        isOwner = owner.AddressOwner === currentAccount.address;
+      } else if ("ObjectOwner" in owner) {
+        // ObjectOwner case - not owned by address
+        isOwner = false;
+      } else if ("Shared" in owner) {
+        // Shared object - not owned by address
+        isOwner = false;
+      }
+    }
 
     debugLog(
-      "AdminCap check hasAdminCap:%s objectCount:%d",
-      hasCap,
-      adminCapData?.data?.length || 0,
+      "AdminCap check hasAdminCap:%s objectId:%s owner:%o currentAddress:%s",
+      isOwner,
+      ADMIN_CAP_ID,
+      owner,
+      currentAccount.address,
     );
 
-    return hasCap;
-  }, [adminCapData]);
+    return isOwner;
+  }, [adminCapObject, currentAccount?.address]);
 
-  // Get first AdminCap object ID if exists
-  const adminCap: AdminCap | null = useMemo(() => {
-    if (!adminCapData?.data || adminCapData.data.length === 0) {
+  // Return AdminCap object ID if user owns it
+  const adminCap = useMemo(() => {
+    if (!hasAdminCap || !ADMIN_CAP_ID) {
       return null;
     }
 
-    const firstObj = adminCapData.data[0];
-
-    if (firstObj?.data?.objectId && firstObj.data.type) {
-      return {
-        objectId: firstObj.data.objectId,
-        type: firstObj.data.type,
-      };
-    }
-
-    return null;
-  }, [adminCapData]);
+    return {
+      objectId: ADMIN_CAP_ID,
+    };
+  }, [hasAdminCap]);
 
   // Log errors if present
   if (error) {

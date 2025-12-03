@@ -8,7 +8,9 @@ import { useQuery } from "@apollo/client/react";
 
 import { graphql } from "@/gql";
 
-const VOLO_VAULT_PACKAGE_ID = import.meta.env.VITE_VOLO_VAULT_PACKAGE_ID || "";
+// Use initial package ID for querying events (events are tied to initial package)
+const VOLO_VAULT_PACKAGE_ID =
+  import.meta.env.VITE_VOLO_VAULT_PACKAGE_ID_INITIAL || "";
 
 export interface ShareRatioHistoryItem {
   shareRatio: bigint;

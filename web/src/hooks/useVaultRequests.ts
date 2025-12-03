@@ -6,7 +6,8 @@ import { loggers } from "@/utils/debug";
 
 const { debugLog, errorLog } = loggers("app:hooks:vault-requests");
 
-const VOLO_VAULT_PACKAGE_ID = import.meta.env.VITE_VOLO_VAULT_PACKAGE_ID || "";
+const VOLO_VAULT_PACKAGE_ID =
+  import.meta.env.VITE_VOLO_VAULT_PACKAGE_ID_INITIAL || "";
 
 // Query keys for React Query
 export const VAULT_REQUEST_SIZES_QUERY_KEY = ["vaultRequestSizes"] as const;

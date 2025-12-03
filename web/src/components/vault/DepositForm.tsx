@@ -28,7 +28,9 @@ import { WalletConnectButtonWithModal } from "@/components/wallet/WalletConnectB
 import { loggers } from "@/utils/debug";
 import { showTransactionErrorToast } from "@/utils/transaction";
 
-const VOLO_VAULT_PACKAGE_ID = import.meta.env.VITE_VOLO_VAULT_PACKAGE_ID || "";
+// Use latest package ID for calling contracts (may be upgraded)
+const VOLO_VAULT_PACKAGE_ID_LATEST =
+  import.meta.env.VITE_VOLO_VAULT_PACKAGE_ID_LATEST || "";
 const { errorLog } = loggers("app:vault:deposit-form");
 
 // Helper function to get coin decimals (default to 6 for USDC, 9 for SUI)
@@ -174,7 +176,7 @@ export function DepositForm({
 
       // Get volo package ID from vault or environment
       const voloPackageId =
-        VOLO_VAULT_PACKAGE_ID || vault.vault_id.split("::")[0];
+        VOLO_VAULT_PACKAGE_ID_LATEST || vault.vault_id.split("::")[0];
 
       // Create Option<Receipt> by calling option::some or option::none
       // The return value of moveCall can be directly used as an argument

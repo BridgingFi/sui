@@ -19,8 +19,12 @@ When a transaction fails in the frontend, extract the transaction parameters and
 - Extract all parameters from the Transaction object (object IDs, type arguments, pure values)
 - Convert `tx.object()` → `@objectId` in PTB format
 - Convert `tx.pure.*` → direct values in PTB format
-- Convert type arguments → `<Type>` in PTB format
+- Convert type arguments → `<Type1,Type2>` in PTB format (comma-separated, no spaces)
+- Use `--assign variable_name` to bind the result of a previous command to a variable
+- Use the variable name (without `@`) to reference the result in subsequent commands
 - Chain multiple move calls with `\` line continuation
+
+**Reference**: [Sui Client PTB CLI Documentation](https://docs.sui.io/references/cli/ptb)
 
 ### Step 2: Send Transaction to Chain
 

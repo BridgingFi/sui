@@ -76,6 +76,14 @@ export const USER_ENTRY_ERROR_CODES: Record<number, string> = {
   4004: "Invalid amount",
 };
 
+// Error codes from bridgingfi_adapter.move (6xxx range)
+export const BRIDGINGFI_ADAPTER_ERROR_CODES: Record<number, string> = {
+  6001: "Overflow error",
+  6002: "Custodian account mismatch",
+  6003: "Insufficient balance",
+  6004: "Vault ID mismatch",
+};
+
 // Combined error code map
 export const ALL_ERROR_CODES: Record<number, string> = {
   ...VOLO_VAULT_ERROR_CODES,
@@ -83,4 +91,5 @@ export const ALL_ERROR_CODES: Record<number, string> = {
   ...ORACLE_ERROR_CODES,
   ...REWARD_MANAGER_ERROR_CODES,
   ...USER_ENTRY_ERROR_CODES,
+  ...BRIDGINGFI_ADAPTER_ERROR_CODES,
 };
