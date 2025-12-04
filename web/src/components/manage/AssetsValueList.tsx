@@ -25,7 +25,7 @@ import {
   TableHeader,
   TableRow,
 } from "@heroui/react";
-import { Trash, Xmark } from "iconoir-react";
+import { Trash, WarningCircle, Xmark } from "iconoir-react";
 import { useState, useMemo } from "react";
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
@@ -36,6 +36,7 @@ import { useOperatorCaps } from "@/hooks/useOperatorCaps";
 import { useVaultAssets, type AssetValueInfo } from "@/hooks/useVaultAssets";
 import { useBridgingFiPosition } from "@/hooks/useBridgingFiPosition";
 import { useOracleConfig } from "@/hooks/useOracleConfig";
+import { isBridgingFiPosition } from "@/utils/bridgingfi";
 import { InvestmentForm } from "@/components/manage/InvestmentForm";
 import { loggers } from "@/utils/debug";
 import { showTransactionErrorToast } from "@/utils/transaction";
@@ -67,13 +68,6 @@ function isDeFiAsset(assetType: string): boolean {
 }
 
 /**
- * Check if an asset type is a BridgingFiPosition
- */
-function isBridgingFiPosition(assetType: string): boolean {
-  return assetType.includes("bridgingfi_adapter::BridgingFiPosition");
-}
-
-/**
  * Extract DeFi asset index from asset type
  * Format: ...::module::Type{idx}
  * Returns the index number, or null if not found
@@ -102,17 +96,16 @@ export function AssetsValueList({
   const client = useSuiClient();
   const { mutate: signAndExecute, isPending } = useSignAndExecuteTransaction();
   const { operatorCaps } = useOperatorCaps();
-  const { oracleConfig } = useOracleConfig();
+  const { oracleConfig, isLoading: isLoadingOracleConfig } = useOracleConfig();
 
   const coinType = vault.coin_type;
 
   // Get coin decimals from oracle config
   // Note: coinType comes from vault.coin_type, which is correct since position belongs to vault
   const coinDecimals = useMemo(() => {
+    // If oracle config is still loading, return null
     if (!oracleConfig) {
-      throw new Error(
-        `Oracle config not loaded. Cannot determine decimals for coin type: ${coinType}`,
-      );
+      return null;
     }
 
     // Try to get decimals from oracle config using coin type
@@ -121,9 +114,7 @@ export function AssetsValueList({
     const priceInfo = oracleConfig.aggregators.get(lookupKey);
 
     if (!priceInfo || !priceInfo.decimals) {
-      throw new Error(
-        `Decimals not found in oracle config for coin type: ${coinType}. Please ensure the coin type is configured in OracleConfig.`,
-      );
+      return null;
     }
 
     return priceInfo.decimals;
@@ -380,7 +371,7 @@ export function AssetsValueList({
           {/* BridgingFi Position Details - Display below table when expanded */}
           {expandedAssetType && isBridgingFiPosition(expandedAssetType) && (
             <div className="rounded-lg border border-default-200 bg-default-50 p-4 m-2 mt-0">
-              {isLoadingBridgingFiPosition ? (
+              {isLoadingBridgingFiPosition || isLoadingOracleConfig ? (
                 <div className="flex items-center justify-center py-8">
                   <Spinner size="lg" />
                 </div>
@@ -441,12 +432,16 @@ export function AssetsValueList({
                       <p className="text-sm font-semibold text-default-600">
                         Outstanding Balance
                       </p>
-                      <p className="text-sm font-mono">
-                        {formatAmount(
-                          Number(bridgingFiPosition.outstandingBalance),
-                          coinDecimals,
-                        )}
-                      </p>
+                      {coinDecimals === null ? (
+                        <WarningCircle className="w-4 h-4 text-danger" />
+                      ) : (
+                        <p className="text-sm font-mono">
+                          {formatAmount(
+                            Number(bridgingFiPosition.outstandingBalance),
+                            coinDecimals,
+                          )}
+                        </p>
+                      )}
                       <p className="text-xs text-default-500 mt-1">
                         Last Updated: {bridgingFiPosition.lastUpdateDate} (UTC)
                       </p>
@@ -455,12 +450,16 @@ export function AssetsValueList({
                       <p className="text-sm font-semibold text-default-600">
                         Current Debt (Estimated)
                       </p>
-                      <p className="text-sm font-mono">
-                        {formatAmount(
-                          Number(bridgingFiPosition.currentDebt),
-                          coinDecimals,
-                        )}
-                      </p>
+                      {coinDecimals === null ? (
+                        <WarningCircle className="w-4 h-4 text-danger" />
+                      ) : (
+                        <p className="text-sm font-mono">
+                          {formatAmount(
+                            Number(bridgingFiPosition.currentDebt),
+                            coinDecimals,
+                          )}
+                        </p>
+                      )}
                       {bridgingFiPosition.currentDebtCalculatedAt && (
                         <p className="text-xs text-default-500 mt-1">
                           Estimated at:{" "}

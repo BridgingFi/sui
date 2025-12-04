@@ -1,25 +1,13 @@
-import { useSuiClientQuery, useSuiClient } from "@mysten/dapp-kit";
-import { Transaction } from "@mysten/sui/transactions";
-import { useQuery } from "@tanstack/react-query";
-
-import { loggers } from "@/utils/debug";
-
-// Use latest package ID for calling contracts (may be upgraded)
-const VOLO_VAULT_PACKAGE_ID =
-  import.meta.env.VITE_VOLO_VAULT_PACKAGE_ID_LATEST || "";
-const { errorLog } = loggers("app:hooks:useVaultInfo");
+import { useSuiClientQuery } from "@mysten/dapp-kit";
 
 /**
- * Hook to query vault information including deposit_fee_rate and share_ratio
+ * Hook to query vault information including deposit_fee_rate, free_principal, etc.
  *
- * Uses get_share_ratio_without_update via devInspectTransactionBlock for real-time share ratio.
- * Share ratio is only used for display purposes, not for deposit calculations.
+ * Note: Share ratio is separated into useVaultShareRatio hook as it's not needed in most cases.
  *
  * @param vaultId - The vault object ID
  */
 export function useVaultInfo(vaultId: string | null) {
-  const client = useSuiClient();
-
   // Query vault object to get deposit_fee_rate and extract coin type from type
   const {
     data: vaultData,
@@ -161,81 +149,18 @@ export function useVaultInfo(vaultId: string | null) {
     }
   }
 
-  // Query share_ratio using get_share_ratio_without_update via devInspectTransactionBlock
-  const {
-    data: shareRatio,
-    isLoading: isLoadingShareRatio,
-    refetch: refetchShareRatio,
-  } = useQuery({
-    queryKey: ["vault-share-ratio", vaultId, coinType],
-    queryFn: async () => {
-      if (!vaultId || !VOLO_VAULT_PACKAGE_ID || !coinType) {
-        return null;
-      }
-
-      try {
-        const tx = new Transaction();
-
-        tx.moveCall({
-          target: `${VOLO_VAULT_PACKAGE_ID}::vault::get_share_ratio_without_update`,
-          typeArguments: [coinType],
-          arguments: [tx.object(vaultId)],
-        });
-
-        const result = await client.devInspectTransactionBlock({
-          sender:
-            "0x0000000000000000000000000000000000000000000000000000000000000000",
-          transactionBlock: tx,
-        });
-
-        if (
-          result.results &&
-          result.results.length > 0 &&
-          result.results[0]?.returnValues &&
-          result.results[0].returnValues.length > 0
-        ) {
-          const returnValue = result.results[0].returnValues[0];
-
-          if (returnValue && Array.isArray(returnValue[0])) {
-            const valueBytes = returnValue[0];
-
-            // Convert bytes array to BigInt (u256)
-            let value = 0n;
-
-            for (let i = valueBytes.length - 1; i >= 0; i--) {
-              value = value * 256n + BigInt(valueBytes[i] || 0);
-            }
-
-            return value;
-          }
-        }
-      } catch (error) {
-        errorLog("Failed to get share ratio: %O", error);
-      }
-
-      // Return null on error, let caller handle the error state
-      return null;
-    },
-    enabled: !!vaultId && !!VOLO_VAULT_PACKAGE_ID && !!coinType,
-    refetchInterval: 30000, // Refetch every 30 seconds
-    staleTime: 15000, // Consider stale after 15 seconds
-  });
-
   return {
     depositFeeRate,
     totalShares,
-    shareRatio: shareRatio ?? null,
     freePrincipal,
     claimablePrincipal,
     withdrawFeeRate,
     lockingTimeForWithdraw,
     lockingTimeForCancelRequest,
     assetTypes,
-    isLoading: isLoadingVault || isLoadingShareRatio,
+    coinType,
+    isLoading: isLoadingVault,
     error: vaultError,
-    refetch: () => {
-      refetchVault();
-      refetchShareRatio();
-    },
+    refetch: refetchVault,
   };
 }

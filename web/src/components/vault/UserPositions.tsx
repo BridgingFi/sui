@@ -21,7 +21,7 @@ import { DepositForm } from "@/components/vault/DepositForm";
 import { VAULT_DECIMALS } from "@/lib/constants";
 import { useReceiptsDetails } from "@/hooks/useReceiptDetails";
 import { useUserReceipts } from "@/hooks/useUserReceipts";
-import { useVaultInfo } from "@/hooks/useVaultInfo";
+import { useVaultShareRatio } from "@/hooks/useVaultShareRatio";
 
 // Helper function to get coin decimals
 function getCoinDecimals(coinType: string): number {
@@ -152,8 +152,9 @@ export function UserPositions({ vault }: UserPositionsProps) {
   } = useUserReceipts(vault.vault_id);
 
   // Get share ratio for calculating position values
-  const { shareRatio, isLoading: isLoadingShareRatio } = useVaultInfo(
+  const { shareRatio, isLoading: isLoadingShareRatio } = useVaultShareRatio(
     vault.vault_id,
+    vault.coin_type,
   );
 
   // Query receipt details for all receipts

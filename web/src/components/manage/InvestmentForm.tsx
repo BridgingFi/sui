@@ -162,36 +162,6 @@ export function InvestmentForm({
       const match = assetType.match(/(\d+)$/);
       const defiAssetId = match && match[1] ? parseInt(match[1], 10) : 0;
 
-      // Remove index suffix from assetType for bag operations
-      // assetType format: ...::bridgingfi_adapter::BridgingFiPosition0
-      // bridgingfiAssetType should be: ...::bridgingfi_adapter::BridgingFiPosition0 (same as assetType)
-      // But we need to ensure it doesn't have 0x prefix for bag operations
-      let bridgingfiAssetType = assetType;
-
-      // Remove 0x prefix if present (bag operations use key without 0x)
-      if (bridgingfiAssetType.startsWith("0x")) {
-        bridgingfiAssetType = bridgingfiAssetType.slice(2);
-      }
-
-      // Extract full type name from assetType for type arguments
-      // assetType format: <address>::module::Type{idx} or 0x<address>::module::Type{idx}
-      // For type arguments, we need: 0x<address>::module::Type (without idx)
-      let fullTypeName = assetType;
-
-      // Remove index suffix (e.g., "BridgingFiPosition0" -> "BridgingFiPosition")
-      fullTypeName = fullTypeName.replace(/\d+$/, "");
-
-      // Add 0x prefix if not present
-      if (!fullTypeName.startsWith("0x")) {
-        // Find the first :: to determine where the address ends
-        const firstColonIndex = fullTypeName.indexOf("::");
-
-        if (firstColonIndex > 0) {
-          // Add 0x prefix to address part
-          fullTypeName = `0x${fullTypeName}`;
-        }
-      }
-
       // Step 1: Update oracle price (TODO: implement later)
       // TODO: Update oracle price before updating values
       // This will require:
@@ -236,7 +206,7 @@ export function InvestmentForm({
           tx.object(vault.vault_id),
           tx.object(VOLO_ORACLE_CONFIG_ID),
           tx.object(SUI_CLOCK_OBJECT_ID),
-          tx.pure.string(bridgingfiAssetType),
+          tx.pure.string(assetType),
         ],
       });
 
@@ -290,7 +260,7 @@ export function InvestmentForm({
         ],
         arguments: [
           bag, // Bag from tuple[0]
-          tx.pure.string(bridgingfiAssetType),
+          tx.pure.string(assetType),
         ],
       });
 
@@ -319,7 +289,7 @@ export function InvestmentForm({
         ],
         arguments: [
           bag, // Bag from tuple[0]
-          tx.pure.string(bridgingfiAssetType),
+          tx.pure.string(assetType),
           position,
         ],
       });
@@ -358,7 +328,7 @@ export function InvestmentForm({
           tx.object(vault.vault_id),
           tx.object(VOLO_ORACLE_CONFIG_ID),
           tx.object(SUI_CLOCK_OBJECT_ID),
-          tx.pure.string(bridgingfiAssetType),
+          tx.pure.string(assetType),
         ],
       });
 

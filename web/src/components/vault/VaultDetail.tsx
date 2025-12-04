@@ -26,6 +26,7 @@ import { UserPositions } from "@/components/vault/UserPositions";
 import { VAULT_DECIMALS } from "@/lib/constants";
 import { useUserReceipts } from "@/hooks/useUserReceipts";
 import { useVaultInfo } from "@/hooks/useVaultInfo";
+import { useVaultShareRatio } from "@/hooks/useVaultShareRatio";
 import { useVaultShareRatioHistoryGraphQL } from "@/hooks/useVaultShareRatioHistoryGraphQL";
 
 interface VaultDetailProps {
@@ -51,9 +52,15 @@ export function VaultDetail({ vault }: VaultDetailProps) {
     withdrawFeeRate,
     lockingTimeForWithdraw,
     lockingTimeForCancelRequest,
-    shareRatio,
+    coinType,
     isLoading: isLoadingVaultInfo,
   } = useVaultInfo(vault.vault_id);
+
+  // Query share ratio separately as it's not needed in most cases
+  const { shareRatio, isLoading: isLoadingShareRatio } = useVaultShareRatio(
+    vault.vault_id,
+    coinType,
+  );
 
   const {
     history: shareRatioHistory,
@@ -241,7 +248,7 @@ export function VaultDetail({ vault }: VaultDetailProps) {
             <CardBody className="p-0">
               <div className="p-4">
                 <span className="text-2xl">
-                  {isLoadingVaultInfo ? (
+                  {isLoadingShareRatio ? (
                     <Spinner size="sm" variant="wave" />
                   ) : shareRatio === null ? (
                     <WarningTriangle />

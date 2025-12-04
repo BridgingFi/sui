@@ -88,3 +88,12 @@ export function getCurrentDayIndex(): number {
 
   return Math.floor(now / msPerDay);
 }
+
+/**
+ * Check if an asset type is a BridgingFiPosition
+ * @param assetType - The asset type string
+ * @returns true if the asset type is a BridgingFiPosition
+ */
+export function isBridgingFiPosition(assetType: string): boolean {
+  return assetType.includes("bridgingfi_adapter::BridgingFiPosition");
+}

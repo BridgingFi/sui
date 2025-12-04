@@ -25,13 +25,15 @@ import { useState } from "react";
 import { useCoinBalance } from "@/hooks/useCoinBalance";
 import { useVaultInfo } from "@/hooks/useVaultInfo";
 import { WalletConnectButtonWithModal } from "@/components/wallet/WalletConnectButtonWithModal";
+import { isBridgingFiPosition } from "@/utils/bridgingfi";
 import { loggers } from "@/utils/debug";
 import { showTransactionErrorToast } from "@/utils/transaction";
 
 // Use latest package ID for calling contracts (may be upgraded)
 const VOLO_VAULT_PACKAGE_ID_LATEST =
   import.meta.env.VITE_VOLO_VAULT_PACKAGE_ID_LATEST || "";
-const { errorLog } = loggers("app:vault:deposit-form");
+const VOLO_ORACLE_CONFIG_ID = import.meta.env.VITE_VOLO_ORACLE_CONFIG_ID || "";
+const { errorLog, debugLog } = loggers("app:vault:deposit-form");
 
 // Helper function to get coin decimals (default to 6 for USDC, 9 for SUI)
 function getCoinDecimals(coinType: string): number {
@@ -84,7 +86,8 @@ export function DepositForm({
     isLoading: isLoadingBalance,
   } = useCoinBalance(coinType);
 
-  useVaultInfo(vault.vault_id); // Query vault info for potential future use
+  // Query vault info to get assetTypes
+  const { assetTypes } = useVaultInfo(vault.vault_id);
 
   const [amount, setAmount] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -177,6 +180,37 @@ export function DepositForm({
       // Get volo package ID from vault or environment
       const voloPackageId =
         VOLO_VAULT_PACKAGE_ID_LATEST || vault.vault_id.split("::")[0];
+
+      // Check if BridgingFiPosition exists in vault and update its value before deposit
+      // This is required because execute_deposit checks all asset values are updated within MAX_UPDATE_INTERVAL
+      const bridgingFiAssetType = assetTypes?.find((assetType) =>
+        isBridgingFiPosition(assetType),
+      );
+
+      if (bridgingFiAssetType && VOLO_ORACLE_CONFIG_ID) {
+        debugLog(
+          "BridgingFiPosition found, updating value before deposit. AssetType: %s",
+          bridgingFiAssetType,
+        );
+
+        // Call update_value before deposit to ensure BridgingFiPosition value is fresh
+        tx.moveCall({
+          target: `${voloPackageId}::bridgingfi_adapter::update_value`,
+          typeArguments: [coinType],
+          arguments: [
+            tx.object(vault.vault_id),
+            tx.object(VOLO_ORACLE_CONFIG_ID),
+            tx.object(SUI_CLOCK_OBJECT_ID),
+            tx.pure.string(bridgingFiAssetType),
+          ],
+        });
+      } else {
+        debugLog(
+          "No BridgingFiPosition found or OracleConfig ID missing. Skipping update_value. AssetTypes: %O, OracleConfigId: %s",
+          assetTypes,
+          VOLO_ORACLE_CONFIG_ID || "not set",
+        );
+      }
 
       // Create Option<Receipt> by calling option::some or option::none
       // The return value of moveCall can be directly used as an argument
