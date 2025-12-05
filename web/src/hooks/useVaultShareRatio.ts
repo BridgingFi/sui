@@ -2,6 +2,7 @@ import { useSuiClientQuery } from "@mysten/dapp-kit";
 import { Transaction } from "@mysten/sui/transactions";
 import { useMemo } from "react";
 
+import { bytesToBigInt } from "@/utils/format";
 import { loggers } from "@/utils/debug";
 
 // Use latest package ID for calling contracts (may be upgraded)
@@ -77,16 +78,8 @@ export function useVaultShareRatio(
         const returnValue = shareRatioResult.results[0].returnValues[0];
 
         if (returnValue && Array.isArray(returnValue[0])) {
-          const valueBytes = returnValue[0];
-
-          // Convert bytes array to BigInt (u256)
-          let value = 0n;
-
-          for (let i = valueBytes.length - 1; i >= 0; i--) {
-            value = value * 256n + BigInt(valueBytes[i] || 0);
-          }
-
-          return value;
+          // Convert bytes array directly to bigint (little-endian)
+          return bytesToBigInt(returnValue[0]);
         }
       }
     } catch (error) {

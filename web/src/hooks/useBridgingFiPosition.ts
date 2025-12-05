@@ -3,6 +3,7 @@ import { useSuiClientQuery } from "@mysten/dapp-kit";
 import { Transaction } from "@mysten/sui/transactions";
 import { SUI_CLOCK_OBJECT_ID } from "@mysten/sui/utils";
 
+import { bytesToBigInt } from "@/utils/format";
 import { loggers } from "@/utils/debug";
 import {
   formatAPR,
@@ -290,16 +291,8 @@ export function useBridgingFiPosition(
         const returnValue = onChainCurrentDebtResult.results[0].returnValues[0];
 
         if (returnValue && Array.isArray(returnValue[0])) {
-          const valueBytes = returnValue[0];
-
-          // Convert bytes array to BigInt (u256)
-          let value = 0n;
-
-          for (let i = valueBytes.length - 1; i >= 0; i--) {
-            value = value * 256n + BigInt(valueBytes[i] || 0);
-          }
-
-          return value;
+          // Convert bytes array directly to bigint (little-endian)
+          return bytesToBigInt(returnValue[0]);
         }
       }
     } catch (error) {

@@ -23,11 +23,15 @@ import { WarningTriangle } from "iconoir-react";
 import { CopyButton } from "@/components/common/CopyButton";
 import { DepositForm } from "@/components/vault/DepositForm";
 import { UserPositions } from "@/components/vault/UserPositions";
+import { formatDecimal, fromDecimals } from "@/utils/format";
 import { VAULT_DECIMALS } from "@/lib/constants";
+import { loggers } from "@/utils/debug";
 import { useUserReceipts } from "@/hooks/useUserReceipts";
 import { useVaultInfo } from "@/hooks/useVaultInfo";
 import { useVaultShareRatio } from "@/hooks/useVaultShareRatio";
 import { useVaultShareRatioHistoryGraphQL } from "@/hooks/useVaultShareRatioHistoryGraphQL";
+
+const { errorLog } = loggers("app:vault:vault-detail");
 
 interface VaultDetailProps {
   vault: VaultInfo;
@@ -103,9 +107,16 @@ export function VaultDetail({ vault }: VaultDetailProps) {
       return "0.000000";
     }
 
-    const priceValue = Number(ratio) / Number(VAULT_DECIMALS);
+    try {
+      // Use generic decimal conversion function
+      const priceValue = fromDecimals(ratio);
 
-    return priceValue.toFixed(6);
+      return priceValue.toFixed(6);
+    } catch (error) {
+      errorLog("Failed to format share price for ratio %o: %O", ratio, error);
+
+      return "N/A";
+    }
   };
 
   // Get latest share price from useVaultInfo (get_share_ratio_without_update)
@@ -205,7 +216,11 @@ export function VaultDetail({ vault }: VaultDetailProps) {
               <div className="flex items-center justify-between">
                 <span className="text-sm text-default-500">Total Shares</span>
                 <span className="text-sm font-medium font-mono">
-                  {totalShares !== null ? totalShares.toString() : "N/A"}
+                  {totalShares !== null
+                    ? (formatDecimal(totalShares, VAULT_DECIMALS, {
+                        maximumFractionDigits: 9,
+                      }) ?? "N/A")
+                    : "N/A"}
                 </span>
               </div>
               <div className="flex items-center justify-between">

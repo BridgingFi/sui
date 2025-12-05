@@ -19,9 +19,13 @@ import { useMemo, useState } from "react";
 
 import { DepositForm } from "@/components/vault/DepositForm";
 import { VAULT_DECIMALS } from "@/lib/constants";
+import { formatDecimal, fromDecimals } from "@/utils/format";
 import { useReceiptsDetails } from "@/hooks/useReceiptDetails";
 import { useUserReceipts } from "@/hooks/useUserReceipts";
 import { useVaultShareRatio } from "@/hooks/useVaultShareRatio";
+import { loggers } from "@/utils/debug";
+
+const { errorLog } = loggers("app:vault:user-positions");
 
 // Helper function to get coin decimals
 function getCoinDecimals(coinType: string): number {
@@ -50,31 +54,6 @@ function formatAmount(amount: bigint | string, coinType: string): string {
     : wholePart.toString();
 }
 
-// Format shares (u256 as string)
-// Shares need to be divided by DECIMALS for display since share_ratio is already a unit price
-function formatShares(shares: string): string {
-  try {
-    const sharesBigInt = BigInt(shares);
-    const sharesWithDecimals = sharesBigInt / VAULT_DECIMALS;
-    const remainder = sharesBigInt % VAULT_DECIMALS;
-
-    // Format with decimals if there's a remainder
-    if (remainder === 0n) {
-      return sharesWithDecimals.toLocaleString();
-    }
-
-    // Format with decimal places
-    const decimalPart = remainder.toString().padStart(9, "0");
-    const trimmedDecimal = decimalPart.replace(/0+$/, "");
-
-    return trimmedDecimal.length > 0
-      ? `${sharesWithDecimals.toLocaleString()}.${trimmedDecimal}`
-      : sharesWithDecimals.toLocaleString();
-  } catch {
-    return shares;
-  }
-}
-
 function calculatePositionValue(
   shares: string,
   shareRatio: bigint | null,
@@ -90,12 +69,22 @@ function calculatePositionValue(
     // To get unit price, we need to divide by DECIMALS: unit_price = share_ratio / DECIMALS
     // value = (shares / DECIMALS) * (share_ratio / DECIMALS)
     //       = (shares * share_ratio) / (DECIMALS * DECIMALS)
-    const sharesNormalized = sharesBigInt / VAULT_DECIMALS;
-    const unitPrice = Number(shareRatio) / Number(VAULT_DECIMALS);
-    const valueNum = Number(sharesNormalized) * unitPrice;
+    // Calculate using BigInt to avoid precision loss from early division
+    const decimalsSquared = VAULT_DECIMALS * VAULT_DECIMALS;
+    const product = sharesBigInt * shareRatio;
 
-    return valueNum.toFixed(6);
-  } catch {
+    // Use generic decimal conversion function
+    const value = fromDecimals(product, decimalsSquared);
+
+    return value.toFixed(6);
+  } catch (error) {
+    errorLog(
+      "Failed to calculate position value for shares %o and share ratio %o: %O",
+      shares,
+      shareRatio,
+      error,
+    );
+
     return "N/A";
   }
 }
@@ -116,12 +105,18 @@ function getPendingInfo(
     case 2: // PENDING_WITHDRAW
       return {
         label: "Pending Withdraw",
-        amount: formatShares(pendingWithdrawShares) + " shares",
+        amount:
+          (formatDecimal(pendingWithdrawShares, VAULT_DECIMALS, {
+            maximumFractionDigits: 9,
+          }) ?? "N/A") + " shares",
       };
     case 3: // PENDING_WITHDRAW_WITH_AUTO_TRANSFER
       return {
         label: "Pending Withdraw (Auto)",
-        amount: formatShares(pendingWithdrawShares) + " shares",
+        amount:
+          (formatDecimal(pendingWithdrawShares, VAULT_DECIMALS, {
+            maximumFractionDigits: 9,
+          }) ?? "N/A") + " shares",
       };
     default:
       return null;
@@ -236,7 +231,13 @@ export function UserPositions({ vault }: UserPositionsProps) {
                       <div className="flex flex-col gap-1">
                         <div>
                           {receiptDetails ? (
-                            formatShares(receiptDetails.shares)
+                            (formatDecimal(
+                              receiptDetails.shares,
+                              VAULT_DECIMALS,
+                              {
+                                maximumFractionDigits: 9,
+                              },
+                            ) ?? "N/A")
                           ) : (
                             <Spinner size="sm" />
                           )}
@@ -252,7 +253,7 @@ export function UserPositions({ vault }: UserPositionsProps) {
                             )}
                           </span>
                         ) : (
-                          <span className="text-default-400">N/A</span>
+                          <span className="text-xs text-default-400">N/A</span>
                         )}
                       </div>
                     </TableCell>

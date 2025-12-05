@@ -161,9 +161,6 @@ export function useReceiptsDetails(
         return;
       }
 
-      // Parse VaultReceiptInfo struct using BCS
-      const valueBytes = new Uint8Array(returnValue[0] as number[]);
-
       const VaultReceiptInfo = bcs.struct("VaultReceiptInfo", {
         status: bcs.u8(),
         shares: bcs.u256(),
@@ -176,7 +173,7 @@ export function useReceiptsDetails(
       });
 
       try {
-        const parsed = VaultReceiptInfo.parse(valueBytes);
+        const parsed = VaultReceiptInfo.parse(Uint8Array.from(returnValue[0]));
 
         map.set(receiptId, {
           ...parsed,
