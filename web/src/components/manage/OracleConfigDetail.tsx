@@ -12,16 +12,7 @@ import {
   ModalContent,
   ModalFooter,
   ModalHeader,
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
   Spinner,
-  Table,
-  TableBody,
-  TableCell,
-  TableColumn,
-  TableHeader,
-  TableRow,
 } from "@heroui/react";
 import {
   useCurrentAccount,
@@ -30,15 +21,20 @@ import {
 } from "@mysten/dapp-kit";
 import { Transaction } from "@mysten/sui/transactions";
 import { SUI_CLOCK_OBJECT_ID } from "@mysten/sui/utils";
-import { Copy, Edit, InfoCircle, Plus, Refresh, Trash } from "iconoir-react";
+import { Edit, Plus, Refresh } from "iconoir-react";
 import { useState } from "react";
 import dayjs from "dayjs";
 import duration from "dayjs/plugin/duration";
+import utc from "dayjs/plugin/utc";
+import timezone from "dayjs/plugin/timezone";
 
 dayjs.extend(duration);
+dayjs.extend(utc);
+dayjs.extend(timezone);
 
 import { AddAggregatorModal } from "./AddAggregatorModal";
 import { SwitchboardAggregatorBrowser } from "./SwitchboardAggregatorBrowser";
+import { AggregatorsTable } from "./AggregatorsTable";
 
 import { useOracleConfig } from "@/hooks/useOracleConfig";
 import { useAdminCap } from "@/hooks/useAdminCap";
@@ -52,18 +48,6 @@ const VOLO_VAULT_PACKAGE_ID_LATEST =
   import.meta.env.VITE_VOLO_VAULT_PACKAGE_ID_LATEST || "";
 const VOLO_ORACLE_CONFIG_ID = import.meta.env.VITE_VOLO_ORACLE_CONFIG_ID || "";
 
-function truncateAddress(address: string): string {
-  return `${address.slice(0, 8)}...${address.slice(-6)}`;
-}
-
-function truncateAssetType(assetType: string): string {
-  if (assetType.length <= 30) {
-    return assetType;
-  }
-
-  return `${assetType.slice(0, 20)}...${assetType.slice(-10)}`;
-}
-
 /**
  * Format duration in milliseconds to human readable format
  * @param ms - Duration in milliseconds
@@ -73,64 +57,6 @@ function formatDuration(ms: number): string {
   const duration = dayjs.duration(ms);
 
   return duration.humanize();
-}
-
-function formatValue(value: string, decimals: number): string {
-  try {
-    const bigIntValue = BigInt(value);
-    const divisor = BigInt(10 ** decimals);
-    const quotient = bigIntValue / divisor;
-    const remainder = bigIntValue % divisor;
-
-    if (remainder === BigInt(0)) {
-      return quotient.toString();
-    }
-
-    const decimalPart = remainder.toString().padStart(decimals, "0");
-    const trimmedDecimal = decimalPart.replace(/0+$/, "");
-
-    return `${quotient}.${trimmedDecimal}`;
-  } catch {
-    return value;
-  }
-}
-
-function formatTimestamp(timestampMs: number): string {
-  try {
-    const date = new Date(timestampMs);
-    const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffSeconds = Math.floor(diffMs / 1000);
-    const diffMinutes = Math.floor(diffSeconds / 60);
-    const diffHours = Math.floor(diffMinutes / 60);
-    const diffDays = Math.floor(diffHours / 24);
-
-    if (diffDays > 0) {
-      return `${diffDays} day${diffDays > 1 ? "s" : ""} ago`;
-    }
-    if (diffHours > 0) {
-      return `${diffHours} hour${diffHours > 1 ? "s" : ""} ago`;
-    }
-    if (diffMinutes > 0) {
-      return `${diffMinutes} minute${diffMinutes > 1 ? "s" : ""} ago`;
-    }
-    if (diffSeconds > 0) {
-      return `${diffSeconds} second${diffSeconds > 1 ? "s" : ""} ago`;
-    }
-
-    return "Just now";
-  } catch {
-    return "Unknown";
-  }
-}
-
-function copyToClipboard(text: string) {
-  navigator.clipboard.writeText(text);
-  addToast({
-    title: "Copied",
-    description: "Copied to clipboard",
-    color: "success",
-  });
 }
 
 /**
@@ -166,6 +92,12 @@ export function OracleConfigDetail() {
     null,
   );
   const [isRemoving, setIsRemoving] = useState(false);
+
+  // Update price state
+  const [updatingAssetType, setUpdatingAssetType] = useState<string | null>(
+    null,
+  );
+  const [isUpdating, setIsUpdating] = useState(false);
 
   const handleAddAggregator = async (
     assetType: string,
@@ -419,6 +351,75 @@ export function OracleConfigDetail() {
     }
   };
 
+  const handleUpdatePrice = async (assetType: string, aggregatorId: string) => {
+    if (!currentAccount) {
+      addToast({
+        title: "Permission denied",
+        description: "Please connect wallet",
+        color: "danger",
+      });
+
+      return;
+    }
+
+    setIsUpdating(true);
+    setUpdatingAssetType(assetType);
+
+    try {
+      const tx = new Transaction();
+
+      tx.moveCall({
+        target: `${VOLO_VAULT_PACKAGE_ID_LATEST}::vault_oracle::update_price`,
+        arguments: [
+          tx.object(VOLO_ORACLE_CONFIG_ID),
+          tx.object(aggregatorId),
+          tx.object(SUI_CLOCK_OBJECT_ID),
+          tx.pure.string(assetType),
+        ],
+      });
+
+      signAndExecute(
+        {
+          transaction: tx,
+        },
+        {
+          onSuccess: async () => {
+            setIsUpdating(false);
+            setUpdatingAssetType(null);
+            addToast({
+              title: "Success",
+              description: "Price updated successfully",
+              color: "success",
+            });
+            setTimeout(() => {
+              refetch();
+            }, 2000);
+          },
+          onError: (err) => {
+            setIsUpdating(false);
+            setUpdatingAssetType(null);
+            showTransactionErrorToast(
+              err,
+              tx,
+              client,
+              errorLog,
+              "Update price failed",
+            );
+          },
+        },
+      );
+    } catch (err) {
+      setIsUpdating(false);
+      setUpdatingAssetType(null);
+      errorLog("Update price error: %O", err);
+      addToast({
+        title: "Error",
+        description: err instanceof Error ? err.message : "Unknown error",
+        color: "danger",
+      });
+    }
+  };
+
   const handleUpdateConfig = async () => {
     if (!currentAccount || !adminCap) {
       addToast({
@@ -609,127 +610,22 @@ export function OracleConfigDetail() {
         </CardHeader>
         <Divider />
         <CardBody className="p-0">
-          {aggregatorsArray.length === 0 ? (
-            <div className="py-8 px-4 text-center text-default-500">
-              No aggregators configured
-            </div>
-          ) : (
-            <Table
-              aria-label="Configured Aggregators"
-              classNames={{
-                wrapper: ["p-0", "rounded-none"],
-                th: ["first:rounded-s-none", "last:rounded-e-none"],
-              }}
-            >
-              <TableHeader>
-                <TableColumn>Asset Type</TableColumn>
-                <TableColumn>Aggregator Address</TableColumn>
-                <TableColumn>Decimals</TableColumn>
-                <TableColumn>Current Price</TableColumn>
-                <TableColumn>Last Updated</TableColumn>
-                <TableColumn>Actions</TableColumn>
-              </TableHeader>
-              <TableBody>
-                {aggregatorsArray.map(([assetType, priceInfo]) => (
-                  <TableRow key={assetType}>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <span>{truncateAssetType(assetType)}</span>
-                        <Button
-                          isIconOnly
-                          size="sm"
-                          variant="light"
-                          onPress={() => copyToClipboard(assetType)}
-                        >
-                          <Copy className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <span>{truncateAddress(priceInfo.aggregator)}</span>
-                        <Button
-                          isIconOnly
-                          size="sm"
-                          variant="light"
-                          onPress={() => copyToClipboard(priceInfo.aggregator)}
-                        >
-                          <Copy className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                    <TableCell>{priceInfo.decimals}</TableCell>
-                    <TableCell>
-                      {formatValue(priceInfo.price, priceInfo.decimals)}
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <span>{formatTimestamp(priceInfo.last_updated)}</span>
-                        <Popover showArrow>
-                          <PopoverTrigger>
-                            <Button
-                              isIconOnly
-                              className="min-w-0 w-4 h-4"
-                              size="sm"
-                              variant="light"
-                            >
-                              <InfoCircle className="w-3 h-3" />
-                            </Button>
-                          </PopoverTrigger>
-                          <PopoverContent>
-                            <div className="px-1 py-2 space-y-1">
-                              <div className="text-sm">
-                                <div className="font-semibold">Timestamp:</div>
-                                <div>{priceInfo.last_updated}</div>
-                              </div>
-                              <div className="text-sm">
-                                <div className="font-semibold">Formatted:</div>
-                                <div>
-                                  {dayjs(priceInfo.last_updated).format(
-                                    "YYYY-MM-DD HH:mm:ss",
-                                  )}
-                                </div>
-                              </div>
-                            </div>
-                          </PopoverContent>
-                        </Popover>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      {hasAdminCap ? (
-                        <div className="flex gap-2">
-                          <Button
-                            color="primary"
-                            size="sm"
-                            variant="flat"
-                            onPress={() => {
-                              setChangingAssetType(assetType);
-                              setNewAggregatorId("");
-                            }}
-                          >
-                            Change
-                          </Button>
-                          <Button
-                            color="danger"
-                            isLoading={
-                              isRemoving && removingAssetType === assetType
-                            }
-                            size="sm"
-                            variant="flat"
-                            onPress={() => handleRemoveAggregator(assetType)}
-                          >
-                            <Trash className="w-4 h-4" />
-                          </Button>
-                        </div>
-                      ) : (
-                        <span className="text-default-400 text-sm">—</span>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
+          <AggregatorsTable
+            aggregatorsArray={aggregatorsArray}
+            formatDuration={formatDuration}
+            hasAdminCap={hasAdminCap}
+            isRemoving={isRemoving}
+            isUpdating={isUpdating}
+            oracleConfig={oracleConfig}
+            removingAssetType={removingAssetType}
+            updatingAssetType={updatingAssetType}
+            onChangeAggregator={(assetType) => {
+              setChangingAssetType(assetType);
+              setNewAggregatorId("");
+            }}
+            onRemoveAggregator={handleRemoveAggregator}
+            onUpdatePrice={handleUpdatePrice}
+          />
         </CardBody>
       </Card>
 
@@ -758,7 +654,7 @@ export function OracleConfigDetail() {
                 <Input
                   description="Leave empty to keep current value"
                   label="Update Interval (milliseconds)"
-                  placeholder={oracleConfig.update_interval.toString()}
+                  placeholder={oracleConfig?.update_interval.toString() || ""}
                   type="number"
                   value={updateInterval}
                   onValueChange={setUpdateInterval}
@@ -766,7 +662,7 @@ export function OracleConfigDetail() {
                 <Input
                   description="Leave empty to keep current value"
                   label="DEX Slippage (u256, e.g., 100 for 1%)"
-                  placeholder={oracleConfig.dex_slippage}
+                  placeholder={oracleConfig?.dex_slippage || ""}
                   value={dexSlippage}
                   onValueChange={setDexSlippage}
                 />

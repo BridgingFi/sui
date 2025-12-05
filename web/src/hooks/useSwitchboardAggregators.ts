@@ -5,6 +5,7 @@ import type {
 import type { SwitchboardAggregator } from "@/lib/types";
 
 import { useQuery } from "@apollo/client/react";
+import { useSuiClientQuery } from "@mysten/dapp-kit";
 import { useMemo } from "react";
 
 import { graphql } from "@/gql";
@@ -39,7 +40,7 @@ const SWITCHBOARD_AGGREGATORS_QUERY = graphql(/* GraphQL */ `
   }
 `);
 
-interface UseSwitchboardAggregatorsOptions {
+interface UseSwitchboardAggregatorsListOptions {
   limit?: number;
   cursor?: string | null;
 }
@@ -75,9 +76,9 @@ function parseAggregatorNode(
   };
 
   return {
-    id: typedJson.id || node.address,
+    id: typedJson.id || String(node.address),
     name: typedJson.name || "Unknown",
-    address: node.address,
+    address: String(node.address),
     authority: typedJson.authority || "",
     created_at_ms: typedJson.created_at_ms || "0",
     current_result: typedJson.current_result
@@ -93,14 +94,21 @@ function parseAggregatorNode(
 }
 
 /**
- * Hook to query Switchboard Aggregator objects using GraphQL with Apollo Client
- * Supports pagination
+ * Hook to list all Switchboard Aggregator objects using GraphQL
+ * Supports pagination and filtering by type
  *
- * Note: Pagination info is always returned even if filtered results are empty,
- * because the next page might contain matching results after client-side filtering.
+ * Use this hook when you need to browse/search all aggregators.
+ *
+ * @example
+ * ```tsx
+ * const { aggregators, isLoading, pagination } = useSwitchboardAggregatorsList({
+ *   limit: 20,
+ *   cursor: null,
+ * });
+ * ```
  */
-export function useSwitchboardAggregators(
-  options: UseSwitchboardAggregatorsOptions = {},
+export function useSwitchboardAggregatorsList(
+  options: UseSwitchboardAggregatorsListOptions = {},
 ) {
   const { limit = 20, cursor = null } = options;
 
@@ -178,4 +186,156 @@ export function useSwitchboardAggregators(
   const isFetching = networkStatus === 2 || networkStatus === 4; // loading or refetching
 
   return { aggregators, isLoading, isFetching, error, pagination };
+}
+
+/**
+ * Data structure for Switchboard Aggregator real-time data
+ */
+export interface SwitchboardAggregatorData {
+  timestamp_ms: number | null;
+  price: string | null;
+}
+
+/**
+ * Hook to batch query multiple Switchboard Aggregator objects by addresses
+ * Returns real-time data (price, timestamp) for the specified addresses
+ *
+ * Use this hook when you have a list of aggregator addresses and need their current data.
+ *
+ * @example
+ * ```tsx
+ * const { data, isLoading } = useSwitchboardAggregatorsByAddresses([
+ *   "0x123...",
+ *   "0x456...",
+ * ]);
+ * const aggregatorData = data.get("0x123...");
+ * ```
+ */
+export function useSwitchboardAggregatorsByAddresses(addresses: string[]): {
+  data: Map<string, SwitchboardAggregatorData>;
+  isLoading: boolean;
+  error: Error | null;
+} {
+  const {
+    data: aggregatorObjects,
+    isLoading,
+    error: queryError,
+  } = useSuiClientQuery(
+    "multiGetObjects",
+    {
+      ids: addresses,
+      options: {
+        showContent: true,
+      },
+    },
+    {
+      enabled: addresses.length > 0,
+      staleTime: 30000,
+    },
+  );
+
+  // Parse switchboard data into a map
+  const data = useMemo(() => {
+    const map = new Map<string, SwitchboardAggregatorData>();
+
+    if (!aggregatorObjects || addresses.length === 0) {
+      return map;
+    }
+
+    for (let i = 0; i < aggregatorObjects.length; i++) {
+      const obj = aggregatorObjects[i];
+      const address = addresses[i];
+
+      if (!address) {
+        continue;
+      }
+
+      if (!obj?.data || !("content" in obj.data)) {
+        map.set(address, { timestamp_ms: null, price: null });
+        continue;
+      }
+
+      const content = obj.data.content;
+
+      if (
+        !content ||
+        content.dataType !== "moveObject" ||
+        !("fields" in content)
+      ) {
+        map.set(address, { timestamp_ms: null, price: null });
+        continue;
+      }
+
+      const fields = content.fields as Record<string, unknown>;
+      const currentResult = fields.current_result as
+        | {
+            fields?: {
+              timestamp_ms?: string | number;
+              result?: {
+                fields?: {
+                  value?: string;
+                  neg?: boolean;
+                };
+              };
+            };
+          }
+        | undefined;
+
+      if (!currentResult?.fields) {
+        map.set(address, { timestamp_ms: null, price: null });
+        continue;
+      }
+
+      const timestampMs = currentResult.fields.timestamp_ms;
+      let parsedTimestamp: number | null = null;
+
+      if (typeof timestampMs === "string") {
+        const parsed = parseInt(timestampMs, 10);
+
+        if (!isNaN(parsed)) {
+          parsedTimestamp = parsed;
+        }
+      } else if (typeof timestampMs === "number") {
+        parsedTimestamp = timestampMs;
+      }
+
+      // Extract price from result.value
+      const result = currentResult.fields.result;
+      let price: string | null = null;
+
+      if (result && typeof result === "object" && "fields" in result) {
+        const resultFields = result.fields as {
+          value?: string;
+          neg?: boolean;
+        };
+
+        if (resultFields.value) {
+          price = resultFields.value;
+        }
+      }
+
+      map.set(address, {
+        timestamp_ms: parsedTimestamp,
+        price: price,
+      });
+    }
+
+    debugLog("Parsed %d Switchboard aggregators from batch query", map.size);
+
+    return map;
+  }, [aggregatorObjects, addresses]);
+
+  const error = useMemo(() => {
+    if (queryError) {
+      errorLog("Error batch querying Switchboard Aggregators: %O", queryError);
+
+      return queryError instanceof Error
+        ? queryError
+        : new Error(String(queryError));
+    }
+
+    return null;
+  }, [queryError]);
+
+  return { data, isLoading, error };
 }

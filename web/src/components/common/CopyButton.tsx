@@ -48,8 +48,8 @@ interface CopyButtonProps extends Omit<ButtonProps, "onPress" | "onCopy"> {
  */
 export function CopyButton({
   value,
-  checkIcon = <Check className="w-4 h-4" />,
-  copyIcon = <Copy className="w-4 h-4" />,
+  checkIcon = <Check />,
+  copyIcon = <Copy />,
   timeout = 2000,
   onCopy: onCopyProp,
   disableTooltip = false,
@@ -75,6 +75,7 @@ export function CopyButton({
     size: "sm",
     variant: "light",
     isIconOnly: true,
+    className: "w-4 h-4 min-w-6",
     onPress: () => {
       copy(value);
       if (onCopyProp) {

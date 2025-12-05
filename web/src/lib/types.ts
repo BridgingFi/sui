@@ -31,6 +31,12 @@ export interface OracleConfig {
 
 export interface PriceInfo {
   aggregator: string;
+  /**
+   * CoinType's decimals, used for price normalization calculations
+   * (e.g., get_normalized_asset_price normalizes to 9 decimals).
+   * NOT used for formatting Oracle price display, which uses 18 decimals
+   * (ORACLE_DECIMALS = 10^18, matching Switchboard's Decimal format).
+   */
   decimals: number;
   price: string;
   last_updated: number;

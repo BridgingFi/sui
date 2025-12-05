@@ -19,7 +19,7 @@ import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
 
 import { CopyButton } from "@/components/common/CopyButton";
-import { useSwitchboardAggregators } from "@/hooks/useSwitchboardAggregators";
+import { useSwitchboardAggregatorsList } from "@/hooks/useSwitchboardAggregators";
 
 dayjs.extend(relativeTime);
 
@@ -84,7 +84,7 @@ export function SwitchboardAggregatorBrowser({
   const [searchQuery, setSearchQuery] = useState("");
 
   const { aggregators, isLoading, isFetching, error, pagination } =
-    useSwitchboardAggregators({
+    useSwitchboardAggregatorsList({
       limit: PAGE_SIZE,
       cursor,
     });
