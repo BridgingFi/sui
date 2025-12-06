@@ -6,8 +6,11 @@ import {
   useSuiClient,
 } from "@mysten/dapp-kit";
 import { Transaction } from "@mysten/sui/transactions";
+import { SUI_CLOCK_OBJECT_ID } from "@mysten/sui/utils";
 import {
+  addToast,
   Button,
+  ButtonGroup,
   Card,
   CardBody,
   CardHeader,
@@ -25,7 +28,7 @@ import {
   TableHeader,
   TableRow,
 } from "@heroui/react";
-import { Trash, WarningCircle, Xmark } from "iconoir-react";
+import { Plus, Refresh, Trash, WarningCircle, Xmark } from "iconoir-react";
 import { useState, useMemo } from "react";
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
@@ -47,6 +50,7 @@ const { errorLog } = loggers("app:manage:assets-value-list");
 const VOLO_VAULT_PACKAGE_ID_LATEST =
   import.meta.env.VITE_VOLO_VAULT_PACKAGE_ID_LATEST || "";
 const VOLO_OPERATION_ID = import.meta.env.VITE_VOLO_OPERATION_ID || "";
+const VOLO_ORACLE_CONFIG_ID = import.meta.env.VITE_VOLO_ORACLE_CONFIG_ID || "";
 
 interface AssetsValueListProps {
   vault: VaultInfo;
@@ -141,6 +145,9 @@ export function AssetsValueList({
   // Investment modal state
   const [isInvestmentModalOpen, setIsInvestmentModalOpen] = useState(false);
 
+  // Update values loading state
+  const [isUpdatingValues, setIsUpdatingValues] = useState(false);
+
   // Query BridgingFiPosition details when an asset is expanded
   const {
     position: bridgingFiPosition,
@@ -150,6 +157,85 @@ export function AssetsValueList({
     coinType || null,
     expandedAssetType,
   );
+
+  const handleUpdateValues = async () => {
+    if (!currentAccount || !assetTypes || !VOLO_ORACLE_CONFIG_ID) {
+      return;
+    }
+
+    const coinType = vault.coin_type;
+
+    if (!coinType) {
+      errorLog("Coin type is missing from vault");
+
+      return;
+    }
+
+    setIsUpdatingValues(true);
+
+    try {
+      const tx = new Transaction();
+
+      // Update principal value
+      tx.moveCall({
+        target: `${VOLO_VAULT_PACKAGE_ID_LATEST}::vault::update_free_principal_value`,
+        typeArguments: [coinType],
+        arguments: [
+          tx.object(vault.vault_id),
+          tx.object(VOLO_ORACLE_CONFIG_ID),
+          tx.object(SUI_CLOCK_OBJECT_ID),
+        ],
+      });
+
+      // Update all BridgingFiPosition values
+      const bridgingFiAssetTypes = assetTypes.filter((assetType) =>
+        isBridgingFiPosition(assetType),
+      );
+
+      for (const bridgingFiAssetType of bridgingFiAssetTypes) {
+        tx.moveCall({
+          target: `${VOLO_VAULT_PACKAGE_ID_LATEST}::bridgingfi_adapter::update_value`,
+          typeArguments: [coinType],
+          arguments: [
+            tx.object(vault.vault_id),
+            tx.object(VOLO_ORACLE_CONFIG_ID),
+            tx.object(SUI_CLOCK_OBJECT_ID),
+            tx.pure.string(bridgingFiAssetType),
+          ],
+        });
+      }
+
+      signAndExecute(
+        {
+          transaction: tx as any,
+        },
+        {
+          onSuccess: () => {
+            setIsUpdatingValues(false);
+            addToast({
+              title: "Success",
+              description: "Asset values updated successfully",
+              color: "success",
+            });
+            // Assets will automatically refetch when dependencies change
+          },
+          onError: (err) => {
+            setIsUpdatingValues(false);
+            showTransactionErrorToast(
+              err,
+              tx,
+              client,
+              errorLog,
+              "Failed to update values",
+            );
+          },
+        },
+      );
+    } catch (err) {
+      setIsUpdatingValues(false);
+      errorLog("Update values error: %O", err);
+    }
+  };
 
   const handleRemoveClick = (asset: AssetValueInfo) => {
     setSelectedAsset(asset);
@@ -257,19 +343,29 @@ export function AssetsValueList({
   return (
     <>
       <Card>
-        <CardHeader className="flex items-center justify-between">
-          <span>Assets Value</span>
-          {onCreatePosition && (
-            <Button
-              color="primary"
-              isDisabled={!currentAccount}
-              size="sm"
-              variant="bordered"
-              onPress={onCreatePosition}
-            >
-              Add Position
-            </Button>
-          )}
+        <CardHeader>
+          <div className="flex w-full items-center justify-between">
+            <span>Assets Value</span>
+            <ButtonGroup color="primary" size="sm" variant="ghost">
+              {onCreatePosition && (
+                <Button
+                  isDisabled={!currentAccount}
+                  startContent={<Plus />}
+                  onPress={onCreatePosition}
+                >
+                  Add Position
+                </Button>
+              )}
+              <Button
+                isDisabled={!currentAccount || isUpdatingValues}
+                isLoading={isUpdatingValues}
+                startContent={<Refresh />}
+                onPress={handleUpdateValues}
+              >
+                Update Values
+              </Button>
+            </ButtonGroup>
+          </div>
         </CardHeader>
         <Divider />
         <CardBody className="p-0">

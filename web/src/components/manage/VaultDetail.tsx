@@ -38,6 +38,7 @@ import { AssetsValueList } from "@/components/manage/AssetsValueList";
 import { CopyButton } from "@/components/common/CopyButton";
 import { CreateBridgingFiPositionForm } from "@/components/manage/CreateBridgingFiPositionForm";
 import { VAULT_DECIMALS } from "@/lib/constants";
+import { isBridgingFiPosition } from "@/utils/bridgingfi";
 import {
   useDepositRequests,
   useWithdrawRequests,
@@ -280,6 +281,32 @@ export function VaultDetail({ vault }: VaultDetailProps) {
         tx.object(SUI_CLOCK_OBJECT_ID),
       ],
     });
+
+    // Update BridgingFiPosition values before execute_deposit
+    // This is required because execute_deposit checks all asset values are updated within MAX_UPDATE_INTERVAL
+    if (assetTypes && VOLO_ORACLE_CONFIG_ID) {
+      const bridgingFiAssetTypes = assetTypes.filter((assetType) =>
+        isBridgingFiPosition(assetType),
+      );
+
+      for (const bridgingFiAssetType of bridgingFiAssetTypes) {
+        debugLog(
+          "BridgingFiPosition found, updating value before execute_deposit. AssetType: %s",
+          bridgingFiAssetType,
+        );
+
+        tx.moveCall({
+          target: `${VOLO_VAULT_PACKAGE_ID_LATEST}::bridgingfi_adapter::update_value`,
+          typeArguments: [coinType],
+          arguments: [
+            tx.object(vault.vault_id),
+            tx.object(VOLO_ORACLE_CONFIG_ID),
+            tx.object(SUI_CLOCK_OBJECT_ID),
+            tx.pure.string(bridgingFiAssetType),
+          ],
+        });
+      }
+    }
 
     // Call execute_deposit with provided max_shares_received
     tx.moveCall({
