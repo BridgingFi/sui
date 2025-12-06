@@ -270,8 +270,6 @@ export function InvestmentForm({
         typeArguments: [coinType],
         arguments: [
           tx.object(vault.vault_id),
-          tx.object(VOLO_OPERATION_ID),
-          tx.object(operatorCap.objectId),
           position,
           balanceT, // Balance<T> from tuple[3]
           tx.pure.u64(amountInCoinUnits),

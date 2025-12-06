@@ -20,7 +20,6 @@ const U64_MAX: u256 = 18446744073709551615; // maximum value for u64
 
 // --------------------- Errors ---------------------//
 
-const ERR_OVERFLOW: u64 = 6_001;
 const ERR_CUSTODIAN_ACCOUNT_MISMATCH: u64 = 6_002;
 const ERR_INSUFFICIENT_BALANCE: u64 = 6_003;
 const ERR_VAULT_ID_MISMATCH: u64 = 6_004;
@@ -137,10 +136,7 @@ public fun update_value<PrincipalCoinType>(
   asset_type: String,
 ) {
   // Get BridgingFiPosition from vault (read-only, no need to modify)
-  let position = vault.get_defi_asset<
-    PrincipalCoinType,
-    BridgingFiPosition,
-  >(
+  let position = vault.get_defi_asset<PrincipalCoinType, BridgingFiPosition>(
     asset_type,
   );
 
@@ -169,33 +165,25 @@ public fun update_value<PrincipalCoinType>(
 }
 
 /// Repay funds to vault
-/// Anyone can call this function to repay
-/// If repayment amount exceeds debt, the excess will be returned to the caller
+/// Note: This function should be called within start_op/end_op (caller's responsibility) and pass position borrowed from vault via start_op
+/// If repayment amount exceeds debt, the excess will be returned
 public fun repay_to_vault<PrincipalCoinType>(
   vault: &mut Vault<PrincipalCoinType>,
-  asset_type: String,
+  position: &mut BridgingFiPosition,
   mut coin: Coin<PrincipalCoinType>,
   amount: u64,
   clock: &Clock,
   ctx: &mut TxContext,
 ): Coin<PrincipalCoinType> {
-  // Validate amount
-  assert!(coin.value() >= amount, ERR_INSUFFICIENT_BALANCE);
-
-  // Borrow BridgingFiPosition from vault
-  let mut position = vault.borrow_defi_asset<
-    PrincipalCoinType,
-    BridgingFiPosition,
-  >(
-    asset_type,
-  );
-
   // Verify vault_id matches
   assert!(position.vault_id() == vault.vault_id(), ERR_VAULT_ID_MISMATCH);
 
+  // Validate coin has sufficient balance
+  assert!(coin::value(&coin) >= amount, ERR_INSUFFICIENT_BALANCE);
+
   // Calculate current real-time debt (compound interest)
-  let current_debt = get_current_debt(&position, clock);
-  let repay_amount = amount as u256;
+  let current_debt = get_current_debt(position, clock) as u64;
+  let repay_amount = amount;
 
   // Calculate actual repayment amount (not exceeding debt)
   let actual_repay_amount = if (repay_amount >= current_debt) {
@@ -204,46 +192,35 @@ public fun repay_to_vault<PrincipalCoinType>(
     repay_amount // Partial repayment
   };
 
-  // Calculate remaining amount (to be returned)
-  let remaining_amount = repay_amount - actual_repay_amount;
-
   // Extract actual repayment amount
-  let repay_coin = coin.split(actual_repay_amount as u64, ctx);
+  let repay_coin = coin.split(actual_repay_amount, ctx);
 
-  // Inject into vault's free_principal
-  vault.add_claimable_principal(repay_coin.into_balance());
+  // Return repayment to vault's free_principal
+  // This is correct because:
+  // 1. invest_to_custodian borrows from free_principal
+  // 2. repay_to_vault should return to free_principal
+  // 3. This allows the funds to be borrowed again for future investments
+  vault.return_free_principal(repay_coin.into_balance());
 
   // Update outstanding_balance = current real-time debt - actual repayment amount
   let new_debt = current_debt - actual_repay_amount;
-  // Overflow check: ensure new_debt can be converted to u64
-  assert!(new_debt <= U64_MAX, ERR_OVERFLOW);
-  position.set_outstanding_balance(new_debt as u64);
+  position.set_outstanding_balance(new_debt);
 
   // Update last_update_day = current dayIndex
   let current_day = get_day_index(clock.timestamp_ms());
   position.update_last_update_day(current_day);
 
-  // Return BridgingFiPosition to vault
-  vault.return_defi_asset(asset_type, position);
-
-  // If there is remaining amount, merge it back to coin and return
-  if (remaining_amount > 0) {
-    let remaining_coin = coin.split(remaining_amount as u64, ctx);
-    coin.join(remaining_coin);
-  };
-
+  // Return remaining coin (if any)
   coin
 }
 
 // --------------------- Operator Functions ---------------------//
 
 /// Invest funds to custodian account
-/// Requires operator permission (needs OperatorCap)
+/// Note: This function should be called within start_op/end_op (caller's responsibility)
 /// @param custodian_account: Secondary confirmation address (must match position's custodian_account)
 public fun invest_to_custodian<PrincipalCoinType>(
   vault: &mut Vault<PrincipalCoinType>,
-  operation: &Operation,
-  cap: &OperatorCap,
   position: &mut BridgingFiPosition,
   principal_balance: &mut Balance<PrincipalCoinType>,
   amount: u64,
@@ -251,8 +228,6 @@ public fun invest_to_custodian<PrincipalCoinType>(
   clock: &Clock,
   ctx: &mut TxContext,
 ) {
-  // Check operator permission
-  vault::assert_operator_not_freezed(operation, cap);
   // Verify the passed address matches the address in position
   assert!(
     custodian_account == position.custodian_account(),
@@ -266,7 +241,7 @@ public fun invest_to_custodian<PrincipalCoinType>(
   );
 
   // Calculate current real-time debt first (if there is old debt, include compound interest)
-  let current_debt = get_current_debt(position, clock);
+  let current_debt = get_current_debt(position, clock) as u64;
 
   // Extract funds from principal_balance
   let transfer_balance = balance::split(principal_balance, amount);
@@ -276,10 +251,8 @@ public fun invest_to_custodian<PrincipalCoinType>(
   transfer::public_transfer(transfer_coin, custodian_account);
 
   // Update outstanding_balance = current real-time debt + new principal
-  let new_debt = current_debt + (amount as u256);
-  // Overflow check: ensure new_debt can be converted to u64
-  assert!(new_debt <= U64_MAX, ERR_OVERFLOW);
-  position.set_outstanding_balance(new_debt as u64);
+  let new_debt = current_debt + amount;
+  position.set_outstanding_balance(new_debt);
 
   // Update last_update_day = current dayIndex
   let current_day = get_day_index(clock.timestamp_ms());
@@ -287,33 +260,17 @@ public fun invest_to_custodian<PrincipalCoinType>(
 }
 
 /// Update custodian account
-/// Requires operator permission (needs OperatorCap)
+/// Note: This function should be called within start_op/end_op (caller's responsibility)
 public fun update_custodian_account<PrincipalCoinType>(
   vault: &mut Vault<PrincipalCoinType>,
-  operation: &Operation,
-  cap: &OperatorCap,
-  asset_type: String,
+  position: &mut BridgingFiPosition,
   new_custodian_account: address,
-  ctx: &mut TxContext,
 ) {
-  // Check operator permission
-  vault::assert_operator_not_freezed(operation, cap);
-  // Borrow BridgingFiPosition from vault
-  let mut position = vault.borrow_defi_asset<
-    PrincipalCoinType,
-    BridgingFiPosition,
-  >(
-    asset_type,
-  );
-
   // Verify vault_id matches
   assert!(position.vault_id() == vault.vault_id(), ERR_VAULT_ID_MISMATCH);
 
   // Update custodian_account
   position.set_custodian_account(new_custodian_account);
-
-  // Return BridgingFiPosition to vault
-  vault.return_defi_asset(asset_type, position);
 }
 
 // --------------------- Getters ---------------------//
