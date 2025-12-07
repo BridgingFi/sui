@@ -5,10 +5,11 @@ use std::type_name;
 use sui::balance::{Self, Balance};
 use sui::clock::Clock;
 use sui::coin::{Self, Coin};
+use sui::event::emit;
 use sui::object::{Self, UID};
 use sui::transfer;
 use sui::tx_context::TxContext;
-use volo_vault::vault::{Self, Operation, OperatorCap, Vault};
+use volo_vault::vault::{Operation, OperatorCap, Vault};
 use volo_vault::vault_oracle::{Self, OracleConfig};
 use volo_vault::vault_utils;
 
@@ -16,13 +17,39 @@ use volo_vault::vault_utils;
 
 const MS_PER_DAY: u64 = 24 * 3600 * 1000; // milliseconds per day
 const DAYS_PER_YEAR: u64 = 365; // days per year
-const U64_MAX: u256 = 18446744073709551615; // maximum value for u64
 
 // --------------------- Errors ---------------------//
 
+const ERR_FUNCTION_DEPRECATED: u64 = 6_001;
 const ERR_CUSTODIAN_ACCOUNT_MISMATCH: u64 = 6_002;
 const ERR_INSUFFICIENT_BALANCE: u64 = 6_003;
 const ERR_VAULT_ID_MISMATCH: u64 = 6_004;
+
+// --------------------- Events ---------------------//
+
+public struct DeployEvent has copy, drop {
+  vault_id: address,
+  position_id: address,
+  custodian_account: address,
+  amount: u64,
+  outstanding_balance_before: u64,
+  outstanding_balance_after: u64,
+}
+
+public struct RepayEvent has copy, drop {
+  vault_id: address,
+  position_id: address,
+  amount: u64,
+  outstanding_balance_before: u64,
+  outstanding_balance_after: u64,
+}
+
+public struct UpdateCustodianEvent has copy, drop {
+  vault_id: address,
+  position_id: address,
+  old_custodian_account: address,
+  new_custodian_account: address,
+}
 
 // --------------------- Structs ---------------------//
 
@@ -164,10 +191,51 @@ public fun update_value<PrincipalCoinType>(
   );
 }
 
+/// @deprecated, will be removed in the future
+public fun repay_to_vault<PrincipalCoinType>(
+  vault: &mut Vault<PrincipalCoinType>,
+  asset_type: String,
+  mut coin: Coin<PrincipalCoinType>,
+  amount: u64,
+  clock: &Clock,
+  ctx: &mut TxContext,
+): Coin<PrincipalCoinType> {
+  abort ERR_FUNCTION_DEPRECATED
+}
+
+// --------------------- Operator Functions ---------------------//
+
+/// @deprecated, will be removed in the future
+public fun invest_to_custodian<PrincipalCoinType>(
+  vault: &mut Vault<PrincipalCoinType>,
+  operation: &Operation,
+  cap: &OperatorCap,
+  position: &mut BridgingFiPosition,
+  principal_balance: &mut Balance<PrincipalCoinType>,
+  amount: u64,
+  custodian_account: address,
+  clock: &Clock,
+  ctx: &mut TxContext,
+) {
+  abort ERR_FUNCTION_DEPRECATED
+}
+
+/// @deprecated, will be removed in the future
+public fun update_custodian_account<PrincipalCoinType>(
+  vault: &mut Vault<PrincipalCoinType>,
+  operation: &Operation,
+  cap: &OperatorCap,
+  asset_type: String,
+  new_custodian_account: address,
+  ctx: &mut TxContext,
+) {
+  abort ERR_FUNCTION_DEPRECATED
+}
+
 /// Repay funds to vault
 /// Note: This function should be called within start_op/end_op (caller's responsibility) and pass position borrowed from vault via start_op
 /// If repayment amount exceeds debt, the excess will be returned
-public fun repay_to_vault<PrincipalCoinType>(
+public fun repay<PrincipalCoinType>(
   vault: &mut Vault<PrincipalCoinType>,
   position: &mut BridgingFiPosition,
   mut coin: Coin<PrincipalCoinType>,
@@ -210,16 +278,23 @@ public fun repay_to_vault<PrincipalCoinType>(
   let current_day = get_day_index(clock.timestamp_ms());
   position.update_last_update_day(current_day);
 
+  // Emit RepayEvent
+  emit(RepayEvent {
+    vault_id: vault.vault_id(),
+    position_id: position.id.to_address(),
+    amount: actual_repay_amount,
+    outstanding_balance_before: current_debt,
+    outstanding_balance_after: new_debt,
+  });
+
   // Return remaining coin (if any)
   coin
 }
 
-// --------------------- Operator Functions ---------------------//
-
-/// Invest funds to custodian account
+/// Deploy funds to custodian account
 /// Note: This function should be called within start_op/end_op (caller's responsibility)
 /// @param custodian_account: Secondary confirmation address (must match position's custodian_account)
-public fun invest_to_custodian<PrincipalCoinType>(
+public fun deploy_to_custodian<PrincipalCoinType>(
   vault: &mut Vault<PrincipalCoinType>,
   position: &mut BridgingFiPosition,
   principal_balance: &mut Balance<PrincipalCoinType>,
@@ -228,6 +303,9 @@ public fun invest_to_custodian<PrincipalCoinType>(
   clock: &Clock,
   ctx: &mut TxContext,
 ) {
+  // Verify vault_id matches
+  assert!(position.vault_id() == vault.vault_id(), ERR_VAULT_ID_MISMATCH);
+
   // Verify the passed address matches the address in position
   assert!(
     custodian_account == position.custodian_account(),
@@ -257,11 +335,21 @@ public fun invest_to_custodian<PrincipalCoinType>(
   // Update last_update_day = current dayIndex
   let current_day = get_day_index(clock.timestamp_ms());
   position.update_last_update_day(current_day);
+
+  // Emit DeployEvent
+  emit(DeployEvent {
+    vault_id: vault.vault_id(),
+    position_id: position.id.to_address(),
+    custodian_account,
+    amount,
+    outstanding_balance_before: current_debt,
+    outstanding_balance_after: new_debt,
+  });
 }
 
 /// Update custodian account
 /// Note: This function should be called within start_op/end_op (caller's responsibility)
-public fun update_custodian_account<PrincipalCoinType>(
+public fun update_custodian<PrincipalCoinType>(
   vault: &mut Vault<PrincipalCoinType>,
   position: &mut BridgingFiPosition,
   new_custodian_account: address,
@@ -269,8 +357,19 @@ public fun update_custodian_account<PrincipalCoinType>(
   // Verify vault_id matches
   assert!(position.vault_id() == vault.vault_id(), ERR_VAULT_ID_MISMATCH);
 
+  // Get old custodian account before update
+  let old_custodian_account = position.custodian_account();
+
   // Update custodian_account
   position.set_custodian_account(new_custodian_account);
+
+  // Emit UpdateCustodianEvent
+  emit(UpdateCustodianEvent {
+    vault_id: vault.vault_id(),
+    position_id: position.id.to_address(),
+    old_custodian_account,
+    new_custodian_account,
+  });
 }
 
 // --------------------- Getters ---------------------//

@@ -1,7 +1,7 @@
 [package]
 name    = "volo_vault"
 edition = "2024.beta"  # edition = "legacy" to use legacy (pre-2024) Move
-published-at = "0xec71942d8c4cfdc2b509de5c727853cf923ce4fcf6e50098c7dc7753e4c4160e"
+published-at = "0xbd0198d427357c5485cf4f92cf0863480bdde7d0af4401e2ad30377afad1676e"
 
 [dependencies.Switchboard]
 local = "../../switchboard-xyz-sui/on_demand"

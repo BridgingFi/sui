@@ -142,7 +142,7 @@ public fun test_invest_to_custodian() {
     );
 
     // Invest to custodian (with correct address)
-    bridgingfi_adapter::invest_to_custodian(
+    bridgingfi_adapter::deploy_to_custodian(
       &mut vault,
       &mut position,
       &mut principal_balance,
@@ -300,7 +300,7 @@ public fun test_invest_to_custodian_wrong_address() {
     );
 
     // Try with wrong address (should fail)
-    bridgingfi_adapter::invest_to_custodian(
+    bridgingfi_adapter::deploy_to_custodian(
       &mut vault,
       &mut position,
       &mut principal_balance,
@@ -454,7 +454,7 @@ public fun test_multiple_investments_compound_interest() {
     );
 
     // First investment
-    bridgingfi_adapter::invest_to_custodian(
+    bridgingfi_adapter::deploy_to_custodian(
       &mut vault,
       &mut position,
       &mut principal_balance,
@@ -570,7 +570,7 @@ public fun test_multiple_investments_compound_interest() {
     );
 
     // Second investment (current debt should include compound interest from first investment)
-    bridgingfi_adapter::invest_to_custodian(
+    bridgingfi_adapter::deploy_to_custodian(
       &mut vault,
       &mut position,
       &mut principal_balance,
@@ -737,7 +737,7 @@ public fun test_invest_to_custodian_insufficient_balance() {
     );
 
     // Try to invest with insufficient balance (should fail)
-    bridgingfi_adapter::invest_to_custodian(
+    bridgingfi_adapter::deploy_to_custodian(
       &mut vault,
       &mut position,
       &mut principal_balance,
@@ -884,7 +884,7 @@ public fun test_invest_to_custodian_operator_freezed() {
     );
 
     // Try to invest with freezed operator (should fail)
-    bridgingfi_adapter::invest_to_custodian(
+    bridgingfi_adapter::deploy_to_custodian(
       &mut vault,
       &mut position,
       &mut principal_balance,

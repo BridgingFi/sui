@@ -80,7 +80,7 @@ fun execute_repayment<PrincipalCoinType>(
   );
 
   // Repay
-  let remaining_coin = bridgingfi_adapter::repay_to_vault(
+  let remaining_coin = bridgingfi_adapter::repay(
     vault,
     &mut position,
     repay_coin,
@@ -827,7 +827,7 @@ public fun test_repay_to_vault_insufficient_coin_balance() {
 
     // This should fail because coin.value() < amount
     // If it fails, repay_coin will be dropped automatically
-    let _remaining_coin = bridgingfi_adapter::repay_to_vault(
+    let _remaining_coin = bridgingfi_adapter::repay(
       &mut vault,
       &mut position,
       repay_coin,
