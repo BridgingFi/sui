@@ -7,7 +7,7 @@ import { useSuiClientQuery } from "@mysten/dapp-kit";
  *
  * @param vaultId - The vault object ID
  */
-export function useVaultInfo(vaultId: string | null) {
+export function useVaultInfo(vaultId: string | undefined) {
   // Query vault object to get deposit_fee_rate and extract coin type from type
   const {
     data: vaultData,
@@ -17,14 +17,14 @@ export function useVaultInfo(vaultId: string | null) {
   } = useSuiClientQuery(
     "getObject",
     {
-      id: vaultId || "",
+      id: vaultId ?? "",
       options: {
         showContent: true,
         showType: true,
       },
     },
     {
-      enabled: !!vaultId,
+      enabled: vaultId !== undefined,
       refetchInterval: 30000, // Refetch every 30 seconds
     },
   );

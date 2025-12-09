@@ -1,4 +1,3 @@
-import type { VaultInfo } from "@/lib/types";
 import type { BridgingFiPositionData } from "@/hooks/useBridgingFiPosition";
 
 import {
@@ -21,6 +20,7 @@ import { SUI_CLOCK_OBJECT_ID } from "@mysten/sui/utils";
 import { useState, useMemo } from "react";
 
 import { useVaultInfo } from "@/hooks/useVaultInfo";
+import { useCoinDecimals } from "@/hooks/useCoinDecimals";
 import { useOperatorCaps } from "@/hooks/useOperatorCaps";
 import { loggers } from "@/utils/debug";
 import { showTransactionErrorToast } from "@/utils/transaction";
@@ -33,7 +33,8 @@ const VOLO_ORACLE_CONFIG_ID = import.meta.env.VITE_VOLO_ORACLE_CONFIG_ID || "";
 const { errorLog } = loggers("app:manage:investment-form");
 
 interface InvestmentFormProps {
-  vault: VaultInfo;
+  vaultId: string;
+  coinType: string;
   position: BridgingFiPositionData;
   isOpen: boolean;
   onClose: () => void;
@@ -41,24 +42,13 @@ interface InvestmentFormProps {
   assetType: string; // Required assetType to extract index from
 }
 
-// Helper function to get coin decimals (default to 9 for SUI)
-function getCoinDecimals(coinType: string): number {
-  if (coinType.toLowerCase().includes("sui")) {
-    return 9;
-  }
-  if (coinType.toLowerCase().includes("usdc")) {
-    return 6;
-  }
-
-  return 9; // Default to 9 decimals
-}
-
 /**
  * Investment form component for BridgingFi
  * Allows operator to invest funds to custodian account
  */
 export function InvestmentForm({
-  vault,
+  vaultId,
+  coinType,
   position,
   isOpen,
   onClose,
@@ -69,12 +59,10 @@ export function InvestmentForm({
   const client = useSuiClient();
   const { mutate: signAndExecute, isPending } = useSignAndExecuteTransaction();
 
-  const coinType = vault.coin_type;
-  const coinDecimals = getCoinDecimals(coinType);
+  const coinDecimals = useCoinDecimals(coinType);
 
-  const { freePrincipal, isLoading: isLoadingVaultInfo } = useVaultInfo(
-    vault.vault_id,
-  );
+  const { freePrincipal, isLoading: isLoadingVaultInfo } =
+    useVaultInfo(vaultId);
 
   // Get operator caps for this vault
   const { operatorCaps } = useOperatorCaps();
@@ -95,7 +83,7 @@ export function InvestmentForm({
 
   // Handle MAX button click
   const handleMax = () => {
-    if (freePrincipal !== null && freePrincipal > 0n) {
+    if (freePrincipal !== null && freePrincipal > 0n && coinDecimals !== null) {
       const maxAmount = Number(freePrincipal) / Math.pow(10, coinDecimals);
 
       setAmount(maxAmount.toFixed(coinDecimals));
@@ -106,6 +94,14 @@ export function InvestmentForm({
   const handleInvest = async () => {
     if (!currentAccount) {
       setError("Wallet not connected");
+
+      return;
+    }
+
+    if (coinDecimals === null) {
+      setError(
+        "Coin decimals not available. Please wait for oracle config to load.",
+      );
 
       return;
     }
@@ -192,7 +188,7 @@ export function InvestmentForm({
         target: `${VOLO_VAULT_PACKAGE_ID_LATEST}::vault::update_free_principal_value`,
         typeArguments: [coinType],
         arguments: [
-          tx.object(vault.vault_id),
+          tx.object(vaultId),
           tx.object(VOLO_ORACLE_CONFIG_ID),
           tx.object(SUI_CLOCK_OBJECT_ID),
         ],
@@ -203,7 +199,7 @@ export function InvestmentForm({
         target: `${VOLO_VAULT_PACKAGE_ID_LATEST}::bridgingfi_adapter::update_value`,
         typeArguments: [coinType],
         arguments: [
-          tx.object(vault.vault_id),
+          tx.object(vaultId),
           tx.object(VOLO_ORACLE_CONFIG_ID),
           tx.object(SUI_CLOCK_OBJECT_ID),
           tx.pure.string(assetType),
@@ -234,7 +230,7 @@ export function InvestmentForm({
           target: `${VOLO_VAULT_PACKAGE_ID_LATEST}::operation::start_op_with_bag`,
           typeArguments: [coinType, coinType, coinType],
           arguments: [
-            tx.object(vault.vault_id),
+            tx.object(vaultId),
             tx.object(VOLO_OPERATION_ID),
             tx.object(operatorCap.objectId),
             tx.object(SUI_CLOCK_OBJECT_ID),
@@ -264,12 +260,12 @@ export function InvestmentForm({
         ],
       });
 
-      // Step 8: invest_to_custodian
+      // Step 8: deploy_to_custodian
       tx.moveCall({
-        target: `${VOLO_VAULT_PACKAGE_ID_LATEST}::bridgingfi_adapter::invest_to_custodian`,
+        target: `${VOLO_VAULT_PACKAGE_ID_LATEST}::bridgingfi_adapter::deploy_to_custodian`,
         typeArguments: [coinType],
         arguments: [
-          tx.object(vault.vault_id),
+          tx.object(vaultId),
           position,
           balanceT, // Balance<T> from tuple[3]
           tx.pure.u64(amountInCoinUnits),
@@ -297,7 +293,7 @@ export function InvestmentForm({
         target: `${VOLO_VAULT_PACKAGE_ID_LATEST}::operation::end_op_with_bag`,
         typeArguments: [coinType, coinType, coinType],
         arguments: [
-          tx.object(vault.vault_id),
+          tx.object(vaultId),
           tx.object(VOLO_OPERATION_ID),
           tx.object(operatorCap.objectId),
           bag, // Bag from tuple[0]
@@ -312,7 +308,7 @@ export function InvestmentForm({
         target: `${VOLO_VAULT_PACKAGE_ID_LATEST}::vault::update_free_principal_value`,
         typeArguments: [coinType],
         arguments: [
-          tx.object(vault.vault_id),
+          tx.object(vaultId),
           tx.object(VOLO_ORACLE_CONFIG_ID),
           tx.object(SUI_CLOCK_OBJECT_ID),
         ],
@@ -323,7 +319,7 @@ export function InvestmentForm({
         target: `${VOLO_VAULT_PACKAGE_ID_LATEST}::bridgingfi_adapter::update_value`,
         typeArguments: [coinType],
         arguments: [
-          tx.object(vault.vault_id),
+          tx.object(vaultId),
           tx.object(VOLO_ORACLE_CONFIG_ID),
           tx.object(SUI_CLOCK_OBJECT_ID),
           tx.pure.string(assetType),
@@ -335,7 +331,7 @@ export function InvestmentForm({
         target: `${VOLO_VAULT_PACKAGE_ID_LATEST}::operation::end_op_value_update_with_bag`,
         typeArguments: [coinType, coinType],
         arguments: [
-          tx.object(vault.vault_id),
+          tx.object(vaultId),
           tx.object(VOLO_OPERATION_ID),
           tx.object(operatorCap.objectId),
           tx.object(SUI_CLOCK_OBJECT_ID),
@@ -374,7 +370,7 @@ export function InvestmentForm({
 
   // Calculate estimated new outstanding balance
   const estimatedNewBalance = useMemo(() => {
-    if (!amount) {
+    if (!amount || coinDecimals === null) {
       return position.outstandingBalance;
     }
 
@@ -401,17 +397,22 @@ export function InvestmentForm({
           <div>
             <span className="text-default-500">Outstanding Balance:</span>
             <span className="ml-2 font-mono">
-              {(
-                Number(position.outstandingBalance) / Math.pow(10, coinDecimals)
-              ).toFixed(coinDecimals)}
+              {coinDecimals !== null
+                ? (
+                    Number(position.outstandingBalance) /
+                    Math.pow(10, coinDecimals)
+                  ).toFixed(coinDecimals)
+                : "N/A"}
             </span>
           </div>
           <div>
             <span className="text-default-500">Current Debt:</span>
             <span className="ml-2 font-mono">
-              {(
-                Number(position.currentDebt) / Math.pow(10, coinDecimals)
-              ).toFixed(coinDecimals)}
+              {coinDecimals !== null
+                ? (
+                    Number(position.currentDebt) / Math.pow(10, coinDecimals)
+                  ).toFixed(coinDecimals)
+                : "N/A"}
             </span>
           </div>
         </div>
@@ -436,14 +437,18 @@ export function InvestmentForm({
         label="Investment Amount"
         min="0"
         placeholder="0.000000"
-        step={`0.${"0".repeat(coinDecimals - 1)}1`}
+        step={
+          coinDecimals !== null
+            ? `0.${"0".repeat(coinDecimals - 1)}1`
+            : "0.000001"
+        }
         type="number"
         value={amount}
         onChange={(e) => setAmount(e.target.value)}
       />
 
       {/* Free Principal Balance */}
-      {freePrincipal !== null && (
+      {freePrincipal !== null && coinDecimals !== null && (
         <p className="text-xs text-default-500">
           Available:{" "}
           {(Number(freePrincipal) / Math.pow(10, coinDecimals)).toFixed(
@@ -470,9 +475,11 @@ export function InvestmentForm({
           <p className="text-sm text-default-600 dark:text-default-400 mt-1">
             New Outstanding Balance:{" "}
             <span className="font-mono font-semibold">
-              {(
-                Number(estimatedNewBalance) / Math.pow(10, coinDecimals)
-              ).toFixed(coinDecimals)}
+              {coinDecimals !== null
+                ? (
+                    Number(estimatedNewBalance) / Math.pow(10, coinDecimals)
+                  ).toFixed(coinDecimals)
+                : "N/A"}
             </span>
           </p>
         </div>
@@ -502,6 +509,7 @@ export function InvestmentForm({
             isDisabled={
               !amount ||
               parseFloat(amount) <= 0 ||
+              coinDecimals === null ||
               custodianAddress !== position.custodianAccount ||
               (freePrincipal !== null &&
                 BigInt(

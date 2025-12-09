@@ -23,7 +23,7 @@ import { WarningTriangle } from "iconoir-react";
 import { CopyButton } from "@/components/common/CopyButton";
 import { DepositForm } from "@/components/vault/DepositForm";
 import { UserPositions } from "@/components/vault/UserPositions";
-import { formatDecimal, fromDecimals } from "@/utils/format";
+import { formatDecimal, fromDecimals, truncateCoinType } from "@/utils/format";
 import { VAULT_DECIMALS } from "@/lib/constants";
 import { loggers } from "@/utils/debug";
 import { useUserReceipts } from "@/hooks/useUserReceipts";
@@ -35,14 +35,6 @@ const { errorLog } = loggers("app:vault:vault-detail");
 
 interface VaultDetailProps {
   vault: VaultInfo;
-}
-
-function truncateCoinType(coinType: string): string {
-  if (coinType.length <= 30) {
-    return coinType;
-  }
-
-  return `${coinType.slice(0, 20)}...${coinType.slice(-10)}`;
 }
 
 /**
@@ -170,9 +162,7 @@ export function VaultDetail({ vault }: VaultDetailProps) {
         <div className="flex items-center gap-4 text-sm text-default-500">
           <div className="flex items-center">
             <Tooltip content={vault.coin_type}>
-              <span className="flex text-sm text-default-500">
-                Coin Type: {truncateCoinType(vault.coin_type)}
-              </span>
+              <span>Coin Type: {truncateCoinType(vault.coin_type)}</span>
             </Tooltip>
             <CopyButton disableTooltip value={vault.coin_type} />
           </div>

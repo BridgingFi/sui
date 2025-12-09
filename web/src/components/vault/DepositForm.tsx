@@ -23,6 +23,7 @@ import { SUI_CLOCK_OBJECT_ID, MOVE_STDLIB_ADDRESS } from "@mysten/sui/utils";
 import { useState } from "react";
 
 import { useCoinBalance } from "@/hooks/useCoinBalance";
+import { useCoinDecimals } from "@/hooks/useCoinDecimals";
 import { useVaultInfo } from "@/hooks/useVaultInfo";
 import { WalletConnectButtonWithModal } from "@/components/wallet/WalletConnectButtonWithModal";
 import { isBridgingFiPosition } from "@/utils/bridgingfi";
@@ -34,21 +35,6 @@ const VOLO_VAULT_PACKAGE_ID_LATEST =
   import.meta.env.VITE_VOLO_VAULT_PACKAGE_ID_LATEST || "";
 const VOLO_ORACLE_CONFIG_ID = import.meta.env.VITE_VOLO_ORACLE_CONFIG_ID || "";
 const { errorLog, debugLog } = loggers("app:vault:deposit-form");
-
-// Helper function to get coin decimals (default to 6 for USDC, 9 for SUI)
-function getCoinDecimals(coinType: string): number {
-  // Most common: USDC has 6 decimals, SUI has 9 decimals
-  // For now, we'll default to 6 for most coins
-  // In production, you might want to query the coin metadata
-  if (coinType.toLowerCase().includes("usdc")) {
-    return 6;
-  }
-  if (coinType.toLowerCase().includes("sui")) {
-    return 9;
-  }
-
-  return 6; // Default to 6 decimals
-}
 
 interface DepositFormProps {
   vault: VaultInfo;
@@ -78,7 +64,7 @@ export function DepositForm({
 
   // Use vault's coin_type instead of environment variable
   const coinType = vault.coin_type;
-  const coinDecimals = getCoinDecimals(coinType);
+  const coinDecimals = useCoinDecimals(coinType);
 
   const {
     balance,
@@ -106,21 +92,29 @@ export function DepositForm({
 
   // Handle MAX button click
   const handleMax = () => {
-    if (balance > 0) {
-      setAmount(balance.toFixed(6));
+    if (balance > 0 && coinDecimals !== null) {
+      setAmount(balance.toFixed(coinDecimals));
     }
   };
 
   // Handle Half button click
   const handleHalf = () => {
-    if (balance > 0) {
-      setAmount((balance / 2).toFixed(6));
+    if (balance > 0 && coinDecimals !== null) {
+      setAmount((balance / 2).toFixed(coinDecimals));
     }
   };
 
   const handleDeposit = async () => {
     if (!currentAccount) {
       setError("Please connect your wallet");
+
+      return;
+    }
+
+    if (coinDecimals === null) {
+      setError(
+        "Coin decimals not available. Please wait for oracle config to load.",
+      );
 
       return;
     }
@@ -167,6 +161,13 @@ export function DepositForm({
 
         return;
       }
+
+      if (coinDecimals === null) {
+        setError("Coin decimals not available");
+
+        return;
+      }
+
       const decimalsMultiplier = Math.pow(10, coinDecimals);
       const amountValue = BigInt(
         Math.floor(Number(amount) * decimalsMultiplier),

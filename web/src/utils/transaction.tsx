@@ -11,7 +11,7 @@ import { ALL_ERROR_CODES } from "./errorCodes";
  * Extract error information from transaction build errors
  * Specifically designed for errors with error.cause containing DryRunTransactionBlockResponse
  * Note: This does NOT handle JsonRpcError from dryRunTransactionBlock failures
- * Priority: abortError.error_code -> status.error -> err.message
+ * Priority: abortError.error_code -> status.error
  * @param err - Error object (typically from tx.build() with error.cause)
  * @returns Error code if found, error message otherwise
  */
@@ -19,47 +19,68 @@ export function extractTransactionErrorInfo(err: unknown): {
   errorCode?: number;
   errorMessage?: string;
 } {
-  if (err instanceof Error) {
-    // Try to extract from error.cause (dryRunResult structure from dryRunTransactionBlock)
-    // This only works for errors that have error.cause with DryRunTransactionBlockResponse
-    if ("cause" in err && err.cause) {
-      const cause = err.cause as DryRunTransactionBlockResponse;
+  // Try to extract from error.cause (dryRunResult structure from dryRunTransactionBlock)
+  // This only works for errors that have error.cause with DryRunTransactionBlockResponse
+  if (err instanceof Error && "cause" in err && err.cause) {
+    const cause = err.cause as DryRunTransactionBlockResponse;
 
-      // First priority: abortError.error_code
-      const errorCodeStr = cause.effects?.abortError?.error_code;
+    // First priority: abortError.error_code
+    const errorCodeStr = cause.effects?.abortError?.error_code;
 
-      if (errorCodeStr) {
-        const code = parseInt(errorCodeStr, 10);
+    if (errorCodeStr) {
+      const code = parseInt(errorCodeStr, 10);
 
-        if (!Number.isNaN(code) && code > 0) {
-          return {
-            errorCode: code,
-            errorMessage: ALL_ERROR_CODES[code] || `Error code ${code}`,
-          };
-        }
-      }
-
-      // Second priority: status.error
-      if (
-        cause.effects?.status?.status !== "success" &&
-        cause.effects?.status?.error
-      ) {
+      if (!Number.isNaN(code) && code > 0) {
         return {
-          errorMessage: cause.effects.status.error,
+          errorCode: code,
+          errorMessage: ALL_ERROR_CODES[code] || `Error code ${code}`,
         };
       }
     }
 
-    // Fallback: err.message
-    if (err.message) {
+    // Second priority: status.error
+    if (
+      cause.effects?.status?.status !== "success" &&
+      cause.effects?.status?.error
+    ) {
       return {
-        errorMessage: err.message,
+        errorMessage: cause.effects.status.error,
       };
     }
   }
 
   // No error information available
   return {};
+}
+
+/**
+ * Handle transaction build error by extracting and enhancing error message
+ * Extracts error information and creates a new error with enhanced message
+ * Preserves the original error stack trace
+ * @param err - The build error to handle
+ * @throws Enhanced error if error message was extracted, otherwise throws original error
+ */
+export function extractBuildError(err: unknown) {
+    // Try to get explained error message
+    const { errorMessage: extractedErrorMessage } =
+    extractTransactionErrorInfo(err);
+
+    // Throw new error with explained message, or original error if no explanation
+    if (extractedErrorMessage) {
+    const enhancedError = new Error(
+      `${extractedErrorMessage} - ${err instanceof Error ? err.message : String(err)}`,
+      );
+
+    // Preserve original stack trace
+    if (err instanceof Error && err.stack) {
+      enhancedError.stack = err.stack;
+    }
+
+    throw enhancedError;
+  }
+
+  // Re-throw original error if no explanation available
+  throw err;
 }
 
 /**
@@ -95,13 +116,18 @@ export async function analyzeTransaction(
     const { errorCode, errorMessage } = extractTransactionErrorInfo(buildErr);
 
     errorLog(
-      "Transaction error: %o, error code: %o, cause: %o",
+      "Transaction error: %o, error code: %o",
       errorMessage,
       errorCode,
       buildErr,
     );
 
-    return { errorCode, errorMessage };
+    return {
+      errorCode,
+      errorMessage:
+        errorMessage ||
+        (buildErr instanceof Error ? buildErr.message : String(buildErr)),
+    };
   }
 }
 
@@ -183,7 +209,7 @@ export function showTransactionErrorToast(
         });
       })
       .catch((analyzeErr) => {
-        errorLog("Failed to analyze transaction: %O", analyzeErr);
+        errorLog("Failed to analyze transaction", analyzeErr);
         if (toastId) closeToast(toastId);
         addToast({
           title,

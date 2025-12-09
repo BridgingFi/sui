@@ -22,8 +22,9 @@ export interface OperatorCap {
  * Hook to query user's OperatorCap objects
  * OperatorCap type: volo_vault::vault::OperatorCap
  * Returns loading state while wallet is connecting or not connected
+ * @param enabled - Whether to enable the query (default: true)
  */
-export function useOperatorCaps() {
+export function useOperatorCaps(enabled: boolean = true) {
   const currentAccount = useCurrentAccount();
   const { isConnected } = useCurrentWallet();
 
@@ -50,7 +51,7 @@ export function useOperatorCaps() {
       },
     },
     {
-      enabled: isWalletReady && !!VOLO_VAULT_PACKAGE_ID,
+      enabled: enabled && isWalletReady && !!VOLO_VAULT_PACKAGE_ID,
       staleTime: 30000, // Consider data fresh for 30 seconds
     },
   );

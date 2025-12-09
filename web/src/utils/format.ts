@@ -26,6 +26,14 @@ export function truncateAssetType(assetType: string): string {
   return `${assetType.slice(0, 20)}...${assetType.slice(-10)}`;
 }
 
+export function truncateCoinType(coinType: string): string {
+  if (coinType.length <= 30) {
+    return coinType;
+  }
+
+  return `${coinType.slice(0, 20)}...${coinType.slice(-10)}`;
+}
+
 /**
  * Convert byte array (number[] or Uint8Array) to bigint
  * Converts to hex string first, then to bigint for simplicity
@@ -92,5 +100,51 @@ export function formatDecimal(
     return num.toLocaleString(undefined, options);
   } catch {
     return undefined;
+  }
+}
+
+/**
+ * Format a coin amount with specified decimals
+ * Handles bigint, string, or number input and formats with proper decimal places
+ * Automatically trims trailing zeros from the decimal part
+ * @param amount - The amount as bigint, string, or number (in smallest units)
+ * @param decimals - Number of decimal places (e.g., 6 for USDC, 9 for SUI)
+ * @returns Formatted string (e.g., "1234.567" or "1000" for whole numbers)
+ */
+export function formatCoinAmount(
+  amount: bigint | string | number | null,
+  decimals: number | null,
+): string {
+  if (amount === null || decimals === null) {
+    return "N/A";
+  }
+
+  try {
+    // Convert to bigint for consistent handling
+    const amountBigInt =
+      typeof amount === "bigint"
+        ? amount
+        : typeof amount === "string"
+          ? BigInt(amount)
+          : BigInt(Math.floor(amount));
+
+    const divisor = BigInt(10 ** decimals);
+    const wholePart = amountBigInt / divisor;
+    const fractionalPart = amountBigInt % divisor;
+
+    // If no fractional part, return whole number as string
+    if (fractionalPart === 0n) {
+      return wholePart.toString();
+    }
+
+    // Format fractional part with proper padding and trim trailing zeros
+    const fractionalStr = fractionalPart.toString().padStart(decimals, "0");
+    const trimmedFractional = fractionalStr.replace(/0+$/, "");
+
+    return trimmedFractional.length > 0
+      ? `${wholePart}.${trimmedFractional}`
+      : wholePart.toString();
+  } catch {
+    return "N/A";
   }
 }

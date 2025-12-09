@@ -39,16 +39,18 @@ import { CopyButton } from "@/components/common/CopyButton";
 import { CreateBridgingFiPositionForm } from "@/components/manage/CreateBridgingFiPositionForm";
 import { VAULT_DECIMALS } from "@/lib/constants";
 import { isBridgingFiPosition } from "@/utils/bridgingfi";
+import { formatCoinAmount, truncateCoinType } from "@/utils/format";
 import {
   useDepositRequests,
   useWithdrawRequests,
 } from "@/hooks/useVaultRequests";
 import { useOperatorCaps } from "@/hooks/useOperatorCaps";
+import { useCoinDecimals } from "@/hooks/useCoinDecimals";
 import { useVaultInfo } from "@/hooks/useVaultInfo";
 import { loggers } from "@/utils/debug";
 import {
+  extractBuildError,
   showTransactionErrorToast,
-  extractTransactionErrorInfo,
 } from "@/utils/transaction";
 
 const { errorLog, debugLog } = loggers("app:manage:vault-detail");
@@ -65,10 +67,6 @@ interface VaultDetailProps {
 
 function truncateAddress(address: string): string {
   return `${address.slice(0, 8)}...${address.slice(-6)}`;
-}
-
-function formatAmount(amount: number, decimals: number = 6): string {
-  return (amount / Math.pow(10, decimals)).toFixed(6);
 }
 
 function formatExpectedShares(shares: string): string {
@@ -96,6 +94,9 @@ export function VaultDetail({ vault }: VaultDetailProps) {
   const client = useSuiClient();
 
   const { mutate: signAndExecute, isPending } = useSignAndExecuteTransaction();
+
+  // Get coin decimals from oracle config
+  const coinDecimals = useCoinDecimals(vault.coin_type);
 
   // Query vault info
   const {
@@ -400,20 +401,9 @@ export function VaultDetail({ vault }: VaultDetailProps) {
       // Build the transaction for dryrun and we can catch errors in advance as
       // there's an internal dryrun but unfortunately we can not get dryrun
       // result from build.
-      const firstTxBytes = await firstTx.build({ client }).catch((e) => {
-        // Try to get explained error message
-        const { errorMessage: extractedErrorMessage } =
-          extractTransactionErrorInfo(e);
-
-        // Throw new error with explained message, or original error if no explanation
-        throw extractedErrorMessage
-          ? new Error(
-              `${extractedErrorMessage} - ${
-                e instanceof Error ? e.message : String(e)
-              }`,
-            )
-          : e;
-      });
+      const firstTxBytes = await firstTx
+        .build({ client })
+        .catch(extractBuildError);
 
       // Now dryrun the transaction to extract actual shares and events
       const firstDryrunResult = await client.dryRunTransactionBlock({
@@ -548,18 +538,7 @@ export function VaultDetail({ vault }: VaultDetailProps) {
       finalTx.setSender(currentAccount.address);
 
       // Step 3: Verify the final transaction can pass build without errors
-      await finalTx.build({ client }).catch((e) => {
-        const { errorMessage: extractedErrorMessage } =
-          extractTransactionErrorInfo(e);
-
-        throw extractedErrorMessage
-          ? new Error(
-              `${extractedErrorMessage} - ${
-                e instanceof Error ? e.message : String(e)
-              }`,
-            )
-          : e;
-      });
+      await finalTx.build({ client }).catch(extractBuildError);
 
       // Step 4: Calculate values from events and simulate shares
 
@@ -844,40 +823,44 @@ export function VaultDetail({ vault }: VaultDetailProps) {
             </div>
           </BreadcrumbItem>
         </Breadcrumbs>
-        <div className="flex items-center gap-4 flex-wrap">
-          <p className="text-default-500">
-            Coin Type:{" "}
-            <span className="text-foreground">
-              {vault.coin_type.split("::").pop() || vault.coin_type}
-            </span>
-          </p>
-          {!isLoadingVaultInfo && (
-            <>
-              <p className="text-default-500">
-                Free Principal:{" "}
-                <span className="text-foreground font-mono">
-                  {freePrincipal !== null
-                    ? formatAmount(Number(freePrincipal))
-                    : "N/A"}
-                </span>
-              </p>
-              <p className="text-default-500">
-                Claimable Principal:{" "}
-                <span className="text-foreground font-mono">
-                  {claimablePrincipal !== null
-                    ? formatAmount(Number(claimablePrincipal))
-                    : "N/A"}
-                </span>
-              </p>
-            </>
-          )}
+        <h1 className="text-3xl font-semibold">
+          {vault.coin_type.split("::").pop() || "Vault"} Vault
+        </h1>
+        <div className="flex flex-wrap items-center gap-4 text-sm text-default-500">
+          <div className="flex items-center">
+            <Tooltip content={vault.coin_type}>
+              <span>Coin Type: {truncateCoinType(vault.coin_type)}</span>
+            </Tooltip>
+            <CopyButton disableTooltip value={vault.coin_type} />
+          </div>
+          <span>
+            Creator: {vault.creator.slice(0, 8)}...{vault.creator.slice(-6)}
+          </span>
+          <span>Created: {new Date(vault.created_at_ms).toLocaleString()}</span>
         </div>
+        {!isLoadingVaultInfo && (
+          <div className="flex flex-wrap items-center gap-4 text-sm text-default-500">
+            <span>
+              Free Principal:{" "}
+              <span className="text-foreground font-mono">
+                {formatCoinAmount(freePrincipal, coinDecimals)}
+              </span>
+            </span>
+            <span>
+              Claimable Principal:{" "}
+              <span className="text-foreground font-mono">
+                {formatCoinAmount(claimablePrincipal, coinDecimals)}
+              </span>
+            </span>
+          </div>
+        )}
       </header>
 
       {/* Assets Value Information */}
       <AssetsValueList
         assetTypes={assetTypes}
-        vault={vault}
+        coinType={vault.coin_type}
+        vaultId={vault.vault_id}
         onCreatePosition={() => setIsCreatePositionModalOpen(true)}
       />
 
@@ -938,7 +921,7 @@ export function VaultDetail({ vault }: VaultDetailProps) {
                       </TableCell>
                       <TableCell>
                         <span className="font-medium">
-                          {formatAmount(Number(item.amount))}
+                          {formatCoinAmount(item.amount, coinDecimals)}
                         </span>
                       </TableCell>
                       <TableCell>
@@ -1069,7 +1052,7 @@ export function VaultDetail({ vault }: VaultDetailProps) {
                       </TableCell>
                       <TableCell>
                         <span className="font-medium">
-                          {formatAmount(Number(item.expected_amount))}
+                          {formatCoinAmount(item.expected_amount, coinDecimals)}
                         </span>
                       </TableCell>
                     </TableRow>
@@ -1129,7 +1112,7 @@ export function VaultDetail({ vault }: VaultDetailProps) {
                 <div>
                   <p className="text-sm text-default-500">Deposit Amount</p>
                   <p className="font-medium">
-                    {formatAmount(Number(pendingRequest.amount))}{" "}
+                    {formatCoinAmount(pendingRequest.amount, coinDecimals)}{" "}
                     {vault.coin_type?.split("::").pop() || ""}
                   </p>
                 </div>
@@ -1186,8 +1169,8 @@ export function VaultDetail({ vault }: VaultDetailProps) {
                             <div className="flex justify-between">
                               <span className="text-default-500">Before:</span>
                               <span className="font-mono">
-                                {formatAmount(
-                                  Number(dryrunResult.totalUsdValueBefore),
+                                {formatCoinAmount(
+                                  dryrunResult.totalUsdValueBefore,
                                   9,
                                 )}
                               </span>
@@ -1195,8 +1178,8 @@ export function VaultDetail({ vault }: VaultDetailProps) {
                             <div className="flex justify-between">
                               <span className="text-default-500">After:</span>
                               <span className="font-mono">
-                                {formatAmount(
-                                  Number(dryrunResult.totalUsdValueAfter),
+                                {formatCoinAmount(
+                                  dryrunResult.totalUsdValueAfter,
                                   9,
                                 )}
                               </span>
@@ -1207,8 +1190,8 @@ export function VaultDetail({ vault }: VaultDetailProps) {
                                   Deposited:
                                 </span>
                                 <span className="font-mono font-medium">
-                                  {formatAmount(
-                                    Number(dryrunResult.usdValueDeposited),
+                                  {formatCoinAmount(
+                                    dryrunResult.usdValueDeposited,
                                     9,
                                   )}
                                 </span>
@@ -1224,8 +1207,8 @@ export function VaultDetail({ vault }: VaultDetailProps) {
                           Share Ratio (from event)
                         </p>
                         <p className="font-mono text-sm">
-                          {formatAmount(
-                            Number(dryrunResult.shareRatioFromEvent),
+                          {formatCoinAmount(
+                            dryrunResult.shareRatioFromEvent,
                             9,
                           )}
                         </p>

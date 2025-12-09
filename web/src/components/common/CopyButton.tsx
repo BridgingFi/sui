@@ -60,9 +60,9 @@ export function CopyButton({
 
   // Default tooltip props similar to use-snippet.ts
   const tooltipProps: Partial<TooltipProps> = {
-    offset: 15,
-    delay: 1000,
+    delay: 200,
     content: "Copy to clipboard",
+    showArrow: true,
     ...userTooltipProps,
   };
 

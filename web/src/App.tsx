@@ -5,6 +5,7 @@ import { HomeRoute } from "@/routes/home";
 import { VaultDetailRoute } from "@/routes/vault-detail";
 import { OperatorCapRoute } from "@/routes/operator-caps";
 import { OracleConfigRoute } from "@/routes/oracle-config";
+import { RepaymentRoute } from "@/routes/repayment";
 
 export default function App() {
   return (
@@ -14,6 +15,10 @@ export default function App() {
       <Route element={<ManageRoute />} path="/manage/:vaultId?" />
       <Route element={<OperatorCapRoute />} path="/manage/operator-caps" />
       <Route element={<OracleConfigRoute />} path="/manage/oracle-config" />
+      <Route
+        element={<RepaymentRoute />}
+        path="/vault/:vaultId/:assetType/repay"
+      />
     </Routes>
   );
 }

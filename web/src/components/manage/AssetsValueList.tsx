@@ -1,5 +1,3 @@
-import type { VaultInfo } from "@/lib/types";
-
 import {
   useCurrentAccount,
   useSignAndExecuteTransaction,
@@ -15,6 +13,7 @@ import {
   CardBody,
   CardHeader,
   Divider,
+  Link,
   Modal,
   ModalBody,
   ModalContent,
@@ -41,6 +40,7 @@ import { useBridgingFiPosition } from "@/hooks/useBridgingFiPosition";
 import { useOracleConfig } from "@/hooks/useOracleConfig";
 import { isBridgingFiPosition } from "@/utils/bridgingfi";
 import { InvestmentForm } from "@/components/manage/InvestmentForm";
+import { formatCoinAmount } from "@/utils/format";
 import { loggers } from "@/utils/debug";
 import { showTransactionErrorToast } from "@/utils/transaction";
 
@@ -53,13 +53,10 @@ const VOLO_OPERATION_ID = import.meta.env.VITE_VOLO_OPERATION_ID || "";
 const VOLO_ORACLE_CONFIG_ID = import.meta.env.VITE_VOLO_ORACLE_CONFIG_ID || "";
 
 interface AssetsValueListProps {
-  vault: VaultInfo;
+  vaultId: string;
+  coinType: string;
   assetTypes: string[] | null;
   onCreatePosition?: () => void;
-}
-
-function formatAmount(amount: number, decimals: number = 6): string {
-  return (amount / Math.pow(10, decimals)).toFixed(6);
 }
 
 /**
@@ -92,7 +89,8 @@ function extractDeFiAssetIndex(assetType: string): number | null {
  * Allows removing BridgingFiPosition assets (except PrincipalCoinType which is always first)
  */
 export function AssetsValueList({
-  vault,
+  vaultId,
+  coinType,
   assetTypes,
   onCreatePosition,
 }: AssetsValueListProps) {
@@ -101,8 +99,6 @@ export function AssetsValueList({
   const { mutate: signAndExecute, isPending } = useSignAndExecuteTransaction();
   const { operatorCaps } = useOperatorCaps();
   const { oracleConfig, isLoading: isLoadingOracleConfig } = useOracleConfig();
-
-  const coinType = vault.coin_type;
 
   // Get coin decimals from oracle config
   // Note: coinType comes from vault.coin_type, which is correct since position belongs to vault
@@ -126,7 +122,7 @@ export function AssetsValueList({
 
   // Query vault assets
   const { assets, isLoading: isLoadingAssets } = useVaultAssets(
-    vault.vault_id,
+    vaultId,
     assetTypes || [],
   );
 
@@ -152,21 +148,15 @@ export function AssetsValueList({
   const {
     position: bridgingFiPosition,
     isLoading: isLoadingBridgingFiPosition,
-  } = useBridgingFiPosition(
-    vault.vault_id,
-    coinType || null,
-    expandedAssetType,
-  );
+  } = useBridgingFiPosition(vaultId, coinType || null, expandedAssetType);
 
   const handleUpdateValues = async () => {
     if (!currentAccount || !assetTypes || !VOLO_ORACLE_CONFIG_ID) {
       return;
     }
 
-    const coinType = vault.coin_type;
-
     if (!coinType) {
-      errorLog("Coin type is missing from vault");
+      errorLog("Coin type is missing");
 
       return;
     }
@@ -181,7 +171,7 @@ export function AssetsValueList({
         target: `${VOLO_VAULT_PACKAGE_ID_LATEST}::vault::update_free_principal_value`,
         typeArguments: [coinType],
         arguments: [
-          tx.object(vault.vault_id),
+          tx.object(vaultId),
           tx.object(VOLO_ORACLE_CONFIG_ID),
           tx.object(SUI_CLOCK_OBJECT_ID),
         ],
@@ -197,7 +187,7 @@ export function AssetsValueList({
           target: `${VOLO_VAULT_PACKAGE_ID_LATEST}::bridgingfi_adapter::update_value`,
           typeArguments: [coinType],
           arguments: [
-            tx.object(vault.vault_id),
+            tx.object(vaultId),
             tx.object(VOLO_ORACLE_CONFIG_ID),
             tx.object(SUI_CLOCK_OBJECT_ID),
             tx.pure.string(bridgingFiAssetType),
@@ -301,7 +291,7 @@ export function AssetsValueList({
         arguments: [
           tx.object(VOLO_OPERATION_ID),
           tx.object(operatorCap.objectId),
-          tx.object(vault.vault_id),
+          tx.object(vaultId),
           tx.pure.u8(defiAssetId),
         ],
       });
@@ -408,7 +398,7 @@ export function AssetsValueList({
                       </TableCell>
                       <TableCell className="align-top">
                         <span className="font-mono text-sm">
-                          {formatAmount(Number(asset.usdValue), 9)}
+                          {formatCoinAmount(Number(asset.usdValue), 9)}
                         </span>
                       </TableCell>
                       <TableCell className="align-top">
@@ -532,8 +522,8 @@ export function AssetsValueList({
                         <WarningCircle className="w-4 h-4 text-danger" />
                       ) : (
                         <p className="text-sm font-mono">
-                          {formatAmount(
-                            Number(bridgingFiPosition.outstandingBalance),
+                          {formatCoinAmount(
+                            bridgingFiPosition.outstandingBalance,
                             coinDecimals,
                           )}
                         </p>
@@ -543,15 +533,23 @@ export function AssetsValueList({
                       </p>
                     </div>
                     <div className="rounded-lg bg-default-100 p-3">
-                      <p className="text-sm font-semibold text-default-600">
+                      <span className="flex text-sm font-semibold text-default-600">
                         Current Debt (Estimated)
-                      </p>
+                        <Link
+                          isExternal
+                          className="text-sm ml-auto font-normal"
+                          color="success"
+                          href={`/vault/${vaultId}/${encodeURIComponent(expandedAssetType)}/repay`}
+                        >
+                          Repay
+                        </Link>
+                      </span>
                       {coinDecimals === null ? (
                         <WarningCircle className="w-4 h-4 text-danger" />
                       ) : (
                         <p className="text-sm font-mono">
-                          {formatAmount(
-                            Number(bridgingFiPosition.currentDebt),
+                          {formatCoinAmount(
+                            bridgingFiPosition.currentDebt,
                             coinDecimals,
                           )}
                         </p>
@@ -578,9 +576,10 @@ export function AssetsValueList({
       {bridgingFiPosition && expandedAssetType && (
         <InvestmentForm
           assetType={expandedAssetType}
+          coinType={coinType}
           isOpen={isInvestmentModalOpen}
           position={bridgingFiPosition}
-          vault={vault}
+          vaultId={vaultId}
           onClose={() => setIsInvestmentModalOpen(false)}
           onSuccess={() => {
             setIsInvestmentModalOpen(false);
@@ -613,7 +612,7 @@ export function AssetsValueList({
                   <p className="text-sm text-warning mt-1">
                     This will permanently remove the BridgingFiPosition from the
                     vault. Make sure the position has no outstanding balance
-                    before removing.
+                    (vaultId: ${vaultId}) before removing.
                   </p>
                 </div>
                 <div className="rounded-lg bg-default-100 p-4 space-y-2">
@@ -625,7 +624,7 @@ export function AssetsValueList({
                   <div className="text-sm">
                     <p className="text-default-500">USD Value</p>
                     <p className="font-mono">
-                      {formatAmount(Number(selectedAsset.usdValue), 9)}
+                      {formatCoinAmount(Number(selectedAsset.usdValue), 9)}
                     </p>
                   </div>
                   <div className="text-sm">

@@ -19,40 +19,14 @@ import { useMemo, useState } from "react";
 
 import { DepositForm } from "@/components/vault/DepositForm";
 import { VAULT_DECIMALS } from "@/lib/constants";
-import { formatDecimal, fromDecimals } from "@/utils/format";
+import { formatDecimal, fromDecimals, formatCoinAmount } from "@/utils/format";
 import { useReceiptsDetails } from "@/hooks/useReceiptDetails";
 import { useUserReceipts } from "@/hooks/useUserReceipts";
 import { useVaultShareRatio } from "@/hooks/useVaultShareRatio";
+import { useCoinDecimals } from "@/hooks/useCoinDecimals";
 import { loggers } from "@/utils/debug";
 
 const { errorLog } = loggers("app:vault:user-positions");
-
-// Helper function to get coin decimals
-function getCoinDecimals(coinType: string): number {
-  if (coinType.toLowerCase().includes("usdc")) {
-    return 6;
-  }
-  if (coinType.toLowerCase().includes("sui")) {
-    return 9;
-  }
-
-  return 6;
-}
-
-// Format amount with decimals
-function formatAmount(amount: bigint | string, coinType: string): string {
-  const decimals = getCoinDecimals(coinType);
-  const amountNum = typeof amount === "string" ? BigInt(amount) : amount;
-  const divisor = BigInt(10 ** decimals);
-  const wholePart = amountNum / divisor;
-  const fractionalPart = amountNum % divisor;
-  const fractionalStr = fractionalPart.toString().padStart(decimals, "0");
-  const trimmedFractional = fractionalStr.replace(/0+$/, "");
-
-  return trimmedFractional.length > 0
-    ? `${wholePart}.${trimmedFractional}`
-    : wholePart.toString();
-}
 
 function calculatePositionValue(
   shares: string,
@@ -94,13 +68,13 @@ function getPendingInfo(
   status: number,
   pendingDepositBalance: string,
   pendingWithdrawShares: string,
-  coinType: string,
+  coinDecimals: number | null,
 ): { label: string; amount: string } | null {
   switch (status) {
     case 1: // PENDING_DEPOSIT
       return {
         label: "Pending Deposit",
-        amount: formatAmount(pendingDepositBalance, coinType),
+        amount: formatCoinAmount(pendingDepositBalance, coinDecimals),
       };
     case 2: // PENDING_WITHDRAW
       return {
@@ -145,6 +119,9 @@ export function UserPositions({ vault }: UserPositionsProps) {
     isLoading: isLoadingReceipts,
     refetch: refetchReceipts,
   } = useUserReceipts(vault.vault_id);
+
+  // Get coin decimals from oracle config
+  const coinDecimals = useCoinDecimals(vault.coin_type);
 
   // Get share ratio for calculating position values
   const { shareRatio, isLoading: isLoadingShareRatio } = useVaultShareRatio(
@@ -205,7 +182,7 @@ export function UserPositions({ vault }: UserPositionsProps) {
                       receiptDetails.status,
                       receiptDetails.pending_deposit_balance,
                       receiptDetails.pending_withdraw_shares,
-                      vault.coin_type,
+                      coinDecimals,
                     )
                   : null;
                 const isPending = pendingInfo !== null;
