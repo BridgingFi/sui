@@ -148,3 +148,30 @@ export function formatCoinAmount(
     return "N/A";
   }
 }
+
+/**
+ * Convert a decimal string (e.g., "1.5") to a bigint with specified decimals
+ * @param value - The decimal string value (e.g., "1.5")
+ * @param decimals - The decimals multiplier (e.g., VAULT_DECIMALS = 10^9)
+ * @returns The value as a string representing the bigint with decimals applied
+ */
+export function toDecimals(
+  value: string,
+  decimals: bigint = VAULT_DECIMALS,
+): string {
+  try {
+    const num = Number(value);
+
+    if (isNaN(num)) {
+      return "0";
+    }
+
+    // Multiply by decimals to get the integer representation
+    const decimalsNum = Number(decimals);
+    const result = BigInt(Math.floor(num * decimalsNum));
+
+    return result.toString();
+  } catch {
+    return "0";
+  }
+}

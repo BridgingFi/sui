@@ -2,6 +2,7 @@ import type { VaultInfo } from "@/lib/types";
 import type { ReceiptDetails } from "@/hooks/useReceiptDetails";
 
 import {
+  addToast,
   Button,
   Card,
   CardBody,
@@ -262,7 +263,11 @@ export function DepositForm({
             if (isOpen !== undefined) {
               handleClose();
             }
-            // TODO: Show success toast
+            addToast({
+              title: "Deposit request sent successfully",
+              description: "Now waiting for operator to execute.",
+              color: "success",
+            });
           },
           onError: (err) => {
             showTransactionErrorToast(
@@ -293,7 +298,7 @@ export function DepositForm({
             }}
             endContent={
               <div className="flex items-center gap-2">
-                <span className="text-default-500 text-sm">
+                <span className="text-sm text-default-500">
                   {coinType.split("::").pop() || "COIN"}
                 </span>
                 {currentAccount && (
@@ -320,7 +325,7 @@ export function DepositForm({
             }
             placeholder="0.00"
             startContent={
-              <div className="flex items-center justify-center w-6 h-6 rounded-full bg-default-200">
+              <div className="flex h-6 w-6 items-center justify-center rounded-full bg-default-200">
                 <span className="text-xs font-bold">$</span>
               </div>
             }
@@ -357,7 +362,7 @@ export function DepositForm({
       </div>
 
       {/* Investment Details */}
-      <div className="space-y-2 pt-2 border-t border-default-200">
+      <div className="space-y-2 border-t border-default-200 pt-2">
         <div className="flex items-center justify-between text-sm">
           <span className="text-default-500">Min Investment</span>
           <span className="font-medium">
@@ -373,12 +378,12 @@ export function DepositForm({
       {/* Receipt Info (if depositing to existing receipt) */}
       {hasReceipt && receiptId && (
         <div className="rounded-lg bg-default-100 p-3">
-          <p className="text-xs text-default-500 mb-1">Receipt ID</p>
+          <p className="mb-1 text-xs text-default-500">Receipt ID</p>
           <p className="font-mono text-sm">
             {receiptId.slice(0, 8)}...{receiptId.slice(-6)}
           </p>
           {hasPendingDeposit && (
-            <p className="text-xs text-warning mt-2">
+            <p className="mt-2 text-xs text-warning">
               ⚠️ This receipt has a pending deposit. Please wait for it to be
               executed.
             </p>

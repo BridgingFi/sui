@@ -2,6 +2,7 @@ import type { VaultInfo } from "@/lib/types";
 
 import {
   Button,
+  ButtonGroup,
   Card,
   CardBody,
   CardHeader,
@@ -18,6 +19,7 @@ import { useCurrentAccount } from "@mysten/dapp-kit";
 import { useMemo, useState } from "react";
 
 import { DepositForm } from "@/components/vault/DepositForm";
+import { WithdrawForm } from "@/components/vault/WithdrawForm";
 import { VAULT_DECIMALS } from "@/lib/constants";
 import { formatDecimal, fromDecimals, formatCoinAmount } from "@/utils/format";
 import { useReceiptsDetails } from "@/hooks/useReceiptDetails";
@@ -113,6 +115,9 @@ export function UserPositions({ vault }: UserPositionsProps) {
   const [depositModalReceiptId, setDepositModalReceiptId] = useState<
     string | null
   >(null);
+  const [withdrawModalReceiptId, setWithdrawModalReceiptId] = useState<
+    string | null
+  >(null);
   const currentAccount = useCurrentAccount();
   const {
     receipts,
@@ -132,11 +137,8 @@ export function UserPositions({ vault }: UserPositionsProps) {
   // Query receipt details for all receipts
   // Use useMemo to stabilize receiptIds array reference to avoid duplicate queries
   const receiptIds = useMemo(() => receipts.map((r) => r.id), [receipts]);
-  const { detailsMap: receiptDetailsMap } = useReceiptsDetails(
-    vault.vault_id,
-    receiptIds,
-    vault.coin_type,
-  );
+  const { detailsMap: receiptDetailsMap, refetch: refetchReceiptDetails } =
+    useReceiptsDetails(vault.vault_id, receiptIds, vault.coin_type);
 
   if (!currentAccount) {
     return null;
@@ -151,11 +153,11 @@ export function UserPositions({ vault }: UserPositionsProps) {
       <Divider />
       <CardBody className="p-0">
         {isLoadingReceipts ? (
-          <div className="flex items-center justify-center py-4 px-4">
+          <div className="flex items-center justify-center px-4 py-4">
             <Spinner size="sm" />
           </div>
         ) : receipts.length === 0 ? (
-          <div className="py-4 px-4 text-center text-default-500">
+          <div className="px-4 py-4 text-center text-default-500">
             <p className="text-sm">You have no positions in this vault.</p>
           </div>
         ) : (
@@ -187,6 +189,11 @@ export function UserPositions({ vault }: UserPositionsProps) {
                   : null;
                 const isPending = pendingInfo !== null;
                 const canDeposit = !isPending && receiptDetails?.status === 0; // NORMAL status
+                const canWithdraw =
+                  !isPending &&
+                  receiptDetails?.status === 0 &&
+                  receiptDetails &&
+                  BigInt(receiptDetails.shares) > 0n; // NORMAL status and has shares
 
                 return (
                   <TableRow>
@@ -235,15 +242,27 @@ export function UserPositions({ vault }: UserPositionsProps) {
                       </div>
                     </TableCell>
                     <TableCell>
-                      {canDeposit ? (
-                        <Button
-                          color="primary"
-                          size="sm"
-                          variant="flat"
-                          onPress={() => setDepositModalReceiptId(receipt.id)}
-                        >
-                          Deposit
-                        </Button>
+                      {canDeposit || canWithdraw ? (
+                        <ButtonGroup color="primary" size="sm" variant="ghost">
+                          {canDeposit && (
+                            <Button
+                              onPress={() =>
+                                setDepositModalReceiptId(receipt.id)
+                              }
+                            >
+                              Deposit
+                            </Button>
+                          )}
+                          {canWithdraw && (
+                            <Button
+                              onPress={() =>
+                                setWithdrawModalReceiptId(receipt.id)
+                              }
+                            >
+                              Withdraw
+                            </Button>
+                          )}
+                        </ButtonGroup>
                       ) : (
                         <span className="text-xs text-default-400">
                           {isPending ? "Pending" : "N/A"}
@@ -271,12 +290,24 @@ export function UserPositions({ vault }: UserPositionsProps) {
         onSuccess={() => {
           // Refetch immediately and with delays since receipts may not be immediately available
           refetchReceipts();
-          setTimeout(() => {
-            refetchReceipts();
-          }, 2000);
-          setTimeout(() => {
-            refetchReceipts();
-          }, 5000);
+          refetchReceiptDetails();
+        }}
+      />
+
+      {/* Withdraw Modal */}
+      <WithdrawForm
+        isOpen={withdrawModalReceiptId !== null}
+        receiptDetails={
+          withdrawModalReceiptId
+            ? (receiptDetailsMap.get(withdrawModalReceiptId) ?? null)
+            : null
+        }
+        vault={vault}
+        onClose={() => setWithdrawModalReceiptId(null)}
+        onSuccess={() => {
+          // Refetch immediately and with delays since receipts may not be immediately available
+          refetchReceipts();
+          refetchReceiptDetails();
         }}
       />
     </Card>
