@@ -192,6 +192,7 @@ public fun update_value<PrincipalCoinType>(
 }
 
 /// @deprecated, will be removed in the future
+#[deprecated(note = b"This function is deprecated and will be removed.")]
 public fun repay_to_vault<PrincipalCoinType>(
   vault: &mut Vault<PrincipalCoinType>,
   asset_type: String,
@@ -206,6 +207,7 @@ public fun repay_to_vault<PrincipalCoinType>(
 // --------------------- Operator Functions ---------------------//
 
 /// @deprecated, will be removed in the future
+#[deprecated(note = b"This function is deprecated and will be removed.")]
 public fun invest_to_custodian<PrincipalCoinType>(
   vault: &mut Vault<PrincipalCoinType>,
   operation: &Operation,
@@ -221,6 +223,7 @@ public fun invest_to_custodian<PrincipalCoinType>(
 }
 
 /// @deprecated, will be removed in the future
+#[deprecated(note = b"This function is deprecated and will be removed.")]
 public fun update_custodian_account<PrincipalCoinType>(
   vault: &mut Vault<PrincipalCoinType>,
   operation: &Operation,
