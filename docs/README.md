@@ -9,6 +9,7 @@
 - **[volo-vault-overview.md](./volo-vault-overview.md)** - Volo Vault core concepts (for quick context)
 - **[permissions.md](./permissions.md)** - Permission system (AdminCap/OperatorCap requirements)
 - **[debugging-guide.md](./debugging-guide.md)** - Transaction debugging workflow
+- **[future-works.md](./future-works.md)** - Future improvements and enhancements for BridgingFi adapter
 
 ## Operational Documents
 

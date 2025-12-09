@@ -62,6 +62,50 @@ See `move/local_dependencies/README.md` for deployment instructions.
 
 **Note**: Wrapper does not manage pause flags, admin queues, or profit ledgers (deferred to future iterations).
 
+## BridgingFi Position Adapter
+
+**Module**: `volo_vault::bridgingfi_adapter` (in local dependencies)
+
+**Purpose**: Custom adapter for off-chain investments (UK lending market) with APR-based debt calculation.
+
+### Core Functions
+
+**Public Functions**:
+
+- `create_position` - Create BridgingFiPosition (operator only)
+- `update_value` - Update USD value based on compound interest (anyone can call)
+
+**Operator Functions** (require OperatorCap):
+
+- `repay` - Repay debt to vault
+- `deploy_to_custodian` - Transfer funds to custodian account
+- `update_custodian` - Update custodian account address
+
+### Repayment Flow
+
+The repayment flow supports multi-signature transactions:
+
+1. **Operator Init** (`RepaymentMode.INIT`):
+   - Operator selects OperatorCap and amount
+   - Generates shareable URL with parameters
+
+2. **Repayer** (`RepaymentMode.SUPPLY_COINS`):
+   - Receives request URL
+   - Builds transaction (using operator's OperatorCap)
+   - Simulates transaction (dry run)
+   - Signs transaction
+   - Generates signed transaction URL
+
+3. **Operator Execute** (`RepaymentMode.EXECUTE`):
+   - Receives signed transaction URL
+   - Rebuilds transaction with same parameters
+   - Verifies transaction hash consistency
+   - Signs and executes with merged signatures
+
+**Route**: `/vault/:vaultId/:assetType/repay`
+
+**Implementation**: `web/src/routes/repayment.tsx`
+
 ## Deployment Notes
 
 - Publish the Move package to Sui testnet and record the resulting module IDs.
