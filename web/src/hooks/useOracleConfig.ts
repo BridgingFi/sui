@@ -229,12 +229,6 @@ export function useOracleConfig() {
     refetchPriceInfos();
   };
 
-  debugLog(
-    "OracleConfig query isLoading:%s aggregatorsCount:%d",
-    isLoading,
-    oracleConfig?.aggregators.size || 0,
-  );
-
   return {
     oracleConfig,
     isLoading,

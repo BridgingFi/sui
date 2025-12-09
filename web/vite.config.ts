@@ -2,6 +2,7 @@ import { defineConfig, loadEnv } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import tsconfigPaths from "vite-tsconfig-paths";
+import { devtools } from "@tanstack/devtools-vite";
 
 export default defineConfig(({ mode }) => {
   // Load environment variables using Vite's loadEnv
@@ -38,6 +39,6 @@ export default defineConfig(({ mode }) => {
         process.env.npm_package_version ?? "0.0.0",
       ),
     },
-    plugins: [react(), tsconfigPaths(), tailwindcss()],
+    plugins: [devtools(), react(), tsconfigPaths(), tailwindcss()],
   };
 });

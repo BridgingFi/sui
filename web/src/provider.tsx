@@ -9,6 +9,8 @@ import {
 import { getFullnodeUrl } from "@mysten/sui/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useHref, useNavigate } from "react-router-dom";
+import { TanStackDevtools } from "@tanstack/react-devtools";
+import { ReactQueryDevtoolsPanel } from "@tanstack/react-query-devtools";
 
 const queryClient = new QueryClient();
 
@@ -43,6 +45,15 @@ export function Provider({ children }: { children: React.ReactNode }) {
           <SuiClientProvider defaultNetwork="testnet" networks={networkConfig}>
             <WalletProvider autoConnect>{children}</WalletProvider>
           </SuiClientProvider>
+          <TanStackDevtools
+            plugins={[
+              {
+                name: "TanStack Query",
+                render: <ReactQueryDevtoolsPanel />,
+                defaultOpen: true,
+              },
+            ]}
+          />
         </QueryClientProvider>
       </ApolloProvider>
     </HeroUIProvider>

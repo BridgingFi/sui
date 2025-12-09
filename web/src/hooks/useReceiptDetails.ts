@@ -1,4 +1,7 @@
-import { useSuiClientQueries } from "@mysten/dapp-kit";
+import {
+  useSuiClientQueries,
+  UseSuiClientQueryOptions,
+} from "@mysten/dapp-kit";
 import { bcs } from "@mysten/sui/bcs";
 import { Transaction } from "@mysten/sui/transactions";
 import { useMemo } from "react";
@@ -99,23 +102,31 @@ export function useReceiptsDetails(
     queries: transactions.map((tx, index) => {
       const receiptId = receiptIds[index];
 
-      return {
+      const options: UseSuiClientQueryOptions<
+        "devInspectTransactionBlock",
+        unknown
+      > = {
+        // Use stable queryKey based on vaultId and receiptId instead of Transaction object
+        // This prevents duplicate queries when Transaction objects are recreated on re-render
+        queryKey: ["vault_receipt_info", vaultId, receiptId, coinType],
+        enabled:
+          !!vaultId && !!receiptId && !!VOLO_VAULT_PACKAGE_ID && !!coinType,
+        staleTime: 30000,
+      };
+
+      const query: Parameters<
+        typeof useSuiClientQueries
+      >[0]["queries"][number] = {
         method: "devInspectTransactionBlock" as const,
         params: {
           sender:
             "0x0000000000000000000000000000000000000000000000000000000000000000",
           transactionBlock: tx,
         },
-        options: {
-          // Use stable queryKey based on vaultId and receiptId instead of Transaction object
-          // This prevents duplicate queries when Transaction objects are recreated on re-render
-          queryKey: ["vault_receipt_info", vaultId, receiptId, coinType],
-          enabled:
-            !!vaultId && !!receiptId && !!VOLO_VAULT_PACKAGE_ID && !!coinType,
-          refetchInterval: 10000,
-          staleTime: 5000,
-        },
+        options,
       };
+
+      return query;
     }),
   });
 
