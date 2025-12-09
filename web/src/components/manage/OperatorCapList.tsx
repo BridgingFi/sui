@@ -4,7 +4,6 @@ import {
   Card,
   CardBody,
   CardHeader,
-  Divider,
   Chip,
   Input,
   Modal,
@@ -19,6 +18,7 @@ import {
   TableColumn,
   TableHeader,
   TableRow,
+  Alert,
 } from "@heroui/react";
 import {
   useCurrentAccount,
@@ -192,8 +192,8 @@ export function OperatorCapList() {
   return (
     <Card>
       <CardHeader>
-        <h2 className="text-lg font-medium">OperatorCap Objects</h2>
-        <div className="flex items-center gap-4 ml-auto">
+        OperatorCap Objects
+        <div className="ml-auto flex items-center gap-4">
           <span className="text-sm text-default-500">
             {operatorCaps.length} {operatorCaps.length === 1 ? "cap" : "caps"}
           </span>
@@ -216,14 +216,18 @@ export function OperatorCapList() {
             variant="light"
             onPress={() => refetch()}
           >
-            <Refresh className="w-4 h-4" />
+            <Refresh className="h-4 w-4" />
           </Button>
         </div>
       </CardHeader>
-      <Divider />
+      {!hasAdminCap && (
+        <Alert color="warning">
+          View-only mode. AdminCap required to modify settings.
+        </Alert>
+      )}
       <CardBody className="p-0">
         {operatorCaps.length === 0 ? (
-          <div className="text-center py-8 px-4 text-default-500">
+          <div className="px-4 py-8 text-center text-default-500">
             <p>No OperatorCap objects found.</p>
           </div>
         ) : (
@@ -273,7 +277,7 @@ export function OperatorCapList() {
               </TableBody>
             </Table>
             {/* Pagination controls */}
-            <div className="flex items-center justify-end gap-4 mt-2">
+            <div className="mt-2 flex items-center justify-end gap-4">
               <Button
                 isDisabled={cursors.length === 0 && !cursor}
                 size="sm"
@@ -312,7 +316,7 @@ export function OperatorCapList() {
               variant="bordered"
               onValueChange={setRecipientAddress}
             />
-            <p className="text-xs text-default-500 mt-2">
+            <p className="mt-2 text-xs text-default-500">
               The OperatorCap will be created and transferred to this address.
             </p>
           </ModalBody>

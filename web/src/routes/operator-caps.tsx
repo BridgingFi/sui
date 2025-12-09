@@ -3,7 +3,7 @@ import { BreadcrumbItem, Breadcrumbs, Spinner } from "@heroui/react";
 
 import { AppLayout } from "@/components/layout/AppLayout";
 import { OperatorCapList } from "@/components/manage/OperatorCapList";
-import { useAdminCap } from "@/hooks/useAdminCap";
+import { useManagePermission } from "@/hooks/useManagePermission";
 
 /**
  * OperatorCap route component
@@ -11,19 +11,23 @@ import { useAdminCap } from "@/hooks/useAdminCap";
  * Only accessible to users with AdminCap
  */
 export const OperatorCapRoute = () => {
-  const { hasAdminCap, isLoading } = useAdminCap();
+  const { hasPermission, isLoading: isLoadingPermission } =
+    useManagePermission();
 
-  if (isLoading) {
+  // Check permissions first
+  if (isLoadingPermission) {
     return (
       <AppLayout>
-        <Spinner variant="dots" />
+        <div className="flex items-center justify-center py-8">
+          <Spinner size="lg" />
+        </div>
       </AppLayout>
     );
   }
 
-  // Redirect to manage page if user doesn't have AdminCap
-  if (!hasAdminCap) {
-    return <Navigate replace to="/manage" />;
+  // Redirect to home if user doesn't have permission
+  if (!hasPermission) {
+    return <Navigate replace to="/" />;
   }
 
   return (
